@@ -1,0 +1,6 @@
+protocolTests()
+sessionListTests()
+statusTests()
+spriteTests()
+stripLayoutTests()
+finish()
