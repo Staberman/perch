@@ -16,6 +16,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+guard SingleInstance.claim() else {
+    FileHandle.standardError.write(Data("perch-overlay is already running\n".utf8))
+    exit(0)
+}
+
 MainActor.assumeIsolated {
     let app = NSApplication.shared
     // An accessory executable, not a .app: an app would need a Homebrew cask, which quarantines it.
