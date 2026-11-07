@@ -1,8 +1,9 @@
 import Foundation
 
 public enum AgentConfig {
+    /// Written by the agent; the path mirrors agent/src/config.ts.
     public static let configFile = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Application Support/claude-panel/config.json")
+        .appendingPathComponent("Library/Application Support/perch/config.json")
 
     public static func token() -> String? {
         (try? Data(contentsOf: configFile)).flatMap(token(fromJSON:))

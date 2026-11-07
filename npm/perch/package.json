@@ -1,0 +1,29 @@
+{
+  "name": "@elrincondeldev/perch",
+  "version": "0.0.0",
+  "description": "Your Claude Code sessions as animated pixel-art creatures on the edge of your Mac's screen",
+  "license": "MIT",
+  "homepage": "https://github.com/elrincondeldev/perch",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elrincondeldev/perch.git"
+  },
+  "type": "module",
+  "bin": {
+    "perch": "bin/perch.js"
+  },
+  "files": [
+    "bin",
+    "lib/platform.js"
+  ],
+  "os": [
+    "darwin"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "optionalDependencies": {
+    "@elrincondeldev/perch-darwin-arm64": "0.0.0",
+    "@elrincondeldev/perch-darwin-x64": "0.0.0"
+  }
+}

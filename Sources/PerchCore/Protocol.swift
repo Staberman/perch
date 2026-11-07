@@ -1,6 +1,6 @@
 import Foundation
 
-// Mirrors claude-panel's shared/protocol.ts; keep the two compatible.
+// Mirrors shared/protocol.ts; keep the two in step, and compatible with claude-panel's Pi panel.
 
 public let panelPort = 7778
 
