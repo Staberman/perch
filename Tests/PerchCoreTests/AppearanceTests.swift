@@ -9,7 +9,7 @@ private func look(_ s: PanelSession, focused: Bool = false, hovered: Bool = fals
 
 func appearanceTests() {
     test("a plain session is its sprite on a bare tile") {
-        let s = session(state: .done)
+        let s = session(state: .idle)
         let a = look(s)
         expectEqual(a.tile, Tile())
         expectEqual(a.opacity, 1)
@@ -17,9 +17,9 @@ func appearanceTests() {
     }
 
     test("hover tints the tile; focus tints it more and rings it") {
-        expectEqual(look(session(), hovered: true).tile, Tile(fill: .white(0.12)))
-        expectEqual(look(session(), focused: true).tile, Tile(fill: .white(0.22), border: .white(0.75)))
-        expectEqual(look(session(), focused: true, hovered: true).tile.fill, .white(0.3))
+        expectEqual(look(session(state: .idle), hovered: true).tile, Tile(fill: .white(0.12)))
+        expectEqual(look(session(state: .idle), focused: true).tile, Tile(fill: .white(0.22), border: .white(0.75)))
+        expectEqual(look(session(state: .idle), focused: true, hovered: true).tile.fill, .white(0.3))
     }
 
     test("a permission request blinks the tile in accent once a second, even when focused") {
@@ -37,6 +37,12 @@ func appearanceTests() {
         expect(pulse.allSatisfy { $0.border == .accent && $0.borderWidth == 2 })
         expectEqual(pulse[0].fill, Paint(rgb: Paint.accent.rgb, alpha: 0.35))
         expectEqual(pulse[4].fill, Paint(rgb: Paint.accent.rgb, alpha: 0.2))
+    }
+
+    test("a finished session is ringed in green until it dozes off, even when it's in front") {
+        expectEqual(look(session(state: .done, stateSince: now - 60)).tile, Tile(border: .ready))
+        expectEqual(look(session(state: .done, stateSince: now - 60), focused: true).tile, Tile(fill: .white(0.22), border: .ready))
+        expectEqual(look(session(state: .done, stateSince: now - 6 * 60)).tile, Tile())
     }
 
     test("errors ring the tile in the danger color") {

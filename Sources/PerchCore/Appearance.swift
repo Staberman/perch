@@ -12,6 +12,8 @@ public struct Paint: Equatable, Sendable {
 
     public static let accent = Paint(rgb: RGB(hex: "#ff6b1a")!)
     public static let danger = Paint(rgb: RGB(hex: "#ff4d4d")!)
+    /// A session that finished its turn and waits for the user's reply.
+    public static let ready = Paint(rgb: RGB(hex: "#4cd964")!)
 
     public static func white(_ alpha: Double) -> Paint {
         Paint(rgb: RGB(r: 255, g: 255, b: 255), alpha: alpha)
@@ -68,6 +70,8 @@ public struct CreatureAppearance: Equatable, Sendable {
             tile = Tile(fill: frame % 4 < 2 ? .accent : Paint.accent.with(alpha: 0.25), border: .accent, borderWidth: 2)
         case .needsInput:
             tile = Tile(fill: Paint.accent.with(alpha: frame % 8 < 4 ? 0.35 : 0.2), border: .accent, borderWidth: 2)
+        case .done where session.mood(at: now) == .finished:
+            tile.border = .ready
         case .error:
             tile.border = .danger
         default:

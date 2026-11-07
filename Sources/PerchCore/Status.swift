@@ -25,7 +25,8 @@ extension PanelSession {
         case .compacting: return .compacting
         case .error: return .error
         case .ended: return .sleeping
-        case .idle, .done: return now.timeIntervalSince(stateSince) > dozeAfter ? .sleeping : .idle
+        case .idle: return now.timeIntervalSince(stateSince) > dozeAfter ? .sleeping : .idle
+        case .done: return now.timeIntervalSince(stateSince) > dozeAfter ? .sleeping : .finished
         }
     }
 

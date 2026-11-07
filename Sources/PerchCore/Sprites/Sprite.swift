@@ -1,7 +1,9 @@
-// Port of claude-panel's ui/src/lib/sprites/render.ts; keep the output identical so both faces match.
+// Grown from claude-panel's ui/src/lib/sprites/render.ts. Working and finished look livelier here; the Pi panel can port them back.
 
 public enum Mood: CaseIterable, Sendable {
     case idle, working, alert, asking, compacting, error, sleeping
+    /// Done with its turn and waiting for the user's reply.
+    case finished
 }
 
 /// A 16×16 character plus room above and to the right for overlays.
@@ -89,11 +91,12 @@ private enum Palette {
     static let dotOff = RGB(hex: "#4a4f5a")!
     static let face = RGB(hex: "#16171c")!
     static let pink = RGB(hex: "#ff8fb1")!
+    static let check = RGB(hex: "#4cd964")!
     static let eye = RGB(hex: "#111216")!
 }
 
 private enum Glyph {
-    case bang, question, cross, z, dot
+    case bang, question, cross, z, dot, check
 
     var rows: [String] {
         switch self {
@@ -102,6 +105,7 @@ private enum Glyph {
         case .cross: return ["X.X", ".X.", "X.X"]
         case .z: return ["XXXX", "..X.", ".X..", "XXXX"]
         case .dot: return ["X"]
+        case .check: return [".....X", "....XX", "X..XX.", "XXXX..", ".XX..."]
         }
     }
 }
@@ -130,8 +134,10 @@ private struct Pose {
         case .idle:
             eyes = cycle([EyeStyle.closed] + Array(repeating: .open, count: 15))
         case .working:
-            dy = cycle([0, -1])
+            dy = cycle([0, -1, -2, -1])
             walk = cycle([false, true])
+            let raised = cycle([0, 1, 2])
+            overlays = (0..<3).map { Overlay(glyph: .dot, x: 17 + $0 * 2, y: $0 == raised ? 3 : 4, color: Palette.dotOn) }
         case .alert:
             dy = cycle([0, -2, -3, -2])
             overlays = cycle([[Overlay(glyph: .bang, x: 21, y: 0, color: Palette.bang)], []])
@@ -147,6 +153,9 @@ private struct Pose {
             dx = cycle([-1, 1, -1, 0, 0, 0, 0, 0])
             eyes = .squint
             overlays = [Overlay(glyph: .cross, x: 19, y: 1, color: Palette.cross)]
+        case .finished:
+            eyes = cycle([EyeStyle.closed] + Array(repeating: .open, count: 15))
+            overlays = [Overlay(glyph: .check, x: 17, y: 0, color: Palette.check)]
         case .sleeping:
             let count = cycle([1, 1, 2, 2, 3, 3, 0, 0])
             eyes = .closed

@@ -11,8 +11,8 @@ func statusTests() {
         expectEqual(session(state: .ended).mood(at: now), .sleeping)
     }
 
-    test("a finished session dozes off after five minutes") {
-        expectEqual(session(state: .done, stateSince: now - 60).mood(at: now), .idle)
+    test("a finished session waits for you, then dozes off after five minutes") {
+        expectEqual(session(state: .done, stateSince: now - 60).mood(at: now), .finished)
         expectEqual(session(state: .idle, stateSince: now - 60).mood(at: now), .idle)
         expectEqual(session(state: .done, stateSince: now - 6 * 60).mood(at: now), .sleeping)
     }

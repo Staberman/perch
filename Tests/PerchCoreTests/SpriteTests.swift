@@ -93,4 +93,24 @@ func spriteTests() {
         expectEqual(trimmed(pixels), [[red, nil], [nil, red]])
         expectEqual(trimmed([[nil, nil], [nil, nil]]), [])
     }
+
+    test("working hops two pixels and shows typing dots, so every character looks busy") {
+        func top(_ pixels: Pixels) -> Int { pixels.firstIndex { $0.contains(orange) }! }
+        for character in CharacterTemplate.all {
+            let frames = (0..<4).map { spriteFrame(character: character.id, color: orange, mood: .working, frame: $0) }
+            let tops = frames.map(top)
+            expectEqual(tops.max()! - tops.min()!, 2)
+            for frame in frames {
+                expect(frame[0...5].contains { $0[17...].contains(RGB(hex: "#ffffff")!) }, "\(character.id) has dots")
+            }
+        }
+    }
+
+    test("a finished creature holds up a green check") {
+        for frame in 0..<8 {
+            expect(spriteFrame(character: "cat", color: orange, mood: .finished, frame: frame).joined().contains(RGB(hex: "#4cd964")!))
+        }
+        expect(!spriteFrame(character: "cat", color: orange, mood: .idle, frame: 1).joined().contains(RGB(hex: "#4cd964")!))
+    }
 }
+
