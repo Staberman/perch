@@ -170,3 +170,10 @@ private func eyeCells(_ style: EyeStyle, mirrored: Bool) -> [(Int, Int)] {
     case .squint: return mirrored ? [(1, 0), (0, 1)] : [(0, 0), (1, 1)]
     }
 }
+
+public func trimmed(_ pixels: Pixels) -> Pixels {
+    let rows = pixels.indices.filter { pixels[$0].contains { $0 != nil } }
+    let columns = (pixels.first?.indices ?? 0..<0).filter { x in pixels.contains { $0[x] != nil } }
+    guard let top = rows.first, let bottom = rows.last, let left = columns.first, let right = columns.last else { return [] }
+    return pixels[top...bottom].map { Array($0[left...right]) }
+}

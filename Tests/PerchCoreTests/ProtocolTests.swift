@@ -67,9 +67,28 @@ func protocolTests() {
         expectEqual(ServerMessage.parse("[]"), nil)
     }
 
-    test("encodes open") {
-        let object = try JSONSerialization.jsonObject(with: Data(ClientMessage.open(id: "abc").json.utf8)) as? [String: String]
-        expectEqual(object, ["type": "open", "id": "abc"])
+    test("encodes open, pin and icon") {
+        func object(_ message: ClientMessage) throws -> NSDictionary? {
+            try JSONSerialization.jsonObject(with: Data(message.json.utf8)) as? NSDictionary
+        }
+        expectEqual(try object(.open(id: "abc")), ["type": "open", "id": "abc"])
+        expectEqual(try object(.pin(id: "abc", pinned: true)), ["type": "pin", "id": "abc", "pinned": true])
+        expectEqual(
+            try object(.icon(id: "abc", icon: SessionIcon(character: "cat", color: "#4f7cff"))),
+            ["type": "icon", "id": "abc", "icon": ["character": "cat", "color": "#4f7cff"]]
+        )
+    }
+
+    test("every client message names its session") {
+        let icon = SessionIcon.default
+        for message in [ClientMessage.open(id: "a"), .pin(id: "a", pinned: false), .icon(id: "a", icon: icon)] {
+            expectEqual(message.sessionId, "a")
+        }
+    }
+
+    test("the color palette matches the Pi panel's and includes the default") {
+        expectEqual(SessionIcon.palette.map(\.color), ["#ff6b1a", "#d97757", "#ffd23f", "#4cd964", "#3ccfe6", "#4f7cff", "#a66cff", "#ff5fa2", "#e8e8e8"])
+        expect(SessionIcon.palette.contains { $0.color == SessionIcon.default.color })
     }
 
     test("reads the pairing token from the agent's config") {

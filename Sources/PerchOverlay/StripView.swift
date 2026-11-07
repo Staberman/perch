@@ -6,6 +6,7 @@ import PerchCore
 final class StripView: NSView {
     var onHover: (Int?) -> Void = { _ in }
     var onClick: (Int) -> Void = { _ in }
+    var menuFor: (Int) -> NSMenu? = { _ in nil }
 
     private var layout = StripLayout.fitting(count: 0, height: 0)
     private let backdrop = CALayer()
@@ -66,7 +67,17 @@ final class StripView: NSView {
     override func mouseExited(with event: NSEvent) { onHover(nil) }
 
     override func mouseDown(with event: NSEvent) {
+        if event.modifierFlags.contains(.control) { return showMenu(for: event) }
         pressed = index(of: event)
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        showMenu(for: event)
+    }
+
+    private func showMenu(for event: NSEvent) {
+        guard let index = index(of: event), let menu = menuFor(index) else { return }
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -146,7 +157,7 @@ private enum SpriteImages {
     }
 }
 
-private extension CGImage {
+extension CGImage {
     static func sprite(_ pixels: Pixels) -> CGImage? {
         let height = pixels.count
         let width = pixels.first?.count ?? 0

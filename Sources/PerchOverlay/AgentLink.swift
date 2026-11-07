@@ -23,7 +23,7 @@ final class AgentLink {
 
     @ObservationIgnored private var task: URLSessionWebSocketTask?
     @ObservationIgnored private var retryDelay = AgentLink.minRetry
-    @ObservationIgnored private var lastOpened: String?
+    @ObservationIgnored private var lastSentTo: String?
     @ObservationIgnored private var noticeExpiry: Task<Void, Never>?
 
     private static let minRetry: Duration = .seconds(1)
@@ -36,10 +36,12 @@ final class AgentLink {
         connect()
     }
 
-    func open(_ id: String) {
-        guard status == .online, let task else { return show(Notice(sessionId: id, message: "not connected to the agent")) }
-        lastOpened = id
-        task.send(.string(ClientMessage.open(id: id).json)) { _ in }
+    func send(_ message: ClientMessage) {
+        guard status == .online, let task else {
+            return show(Notice(sessionId: message.sessionId, message: "not connected to the agent"))
+        }
+        lastSentTo = message.sessionId
+        task.send(.string(message.json)) { _ in }
     }
 
     private func connect() {
@@ -70,7 +72,8 @@ final class AgentLink {
             // The agent answers a bad token by refusing the upgrade, so any message means we're in.
             status = .online
             retryDelay = Self.minRetry
-            if case .error(let text) = parsed, let id = lastOpened {
+            // The agent's errors don't name a session; they answer the last message sent.
+            if case .error(let text) = parsed, let id = lastSentTo {
                 show(Notice(sessionId: id, message: text))
             }
             list.apply(parsed)

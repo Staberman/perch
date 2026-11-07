@@ -30,6 +30,12 @@ public struct SessionIcon: Equatable, Sendable, Decodable {
     }
 
     public static let `default` = SessionIcon(character: "default", color: "#d97757")
+
+    /// The colors the Pi panel offers, so a choice made on either face exists on the other.
+    public static let palette: [(name: String, color: String)] = [
+        ("Orange", "#ff6b1a"), ("Clay", "#d97757"), ("Yellow", "#ffd23f"), ("Green", "#4cd964"), ("Cyan", "#3ccfe6"),
+        ("Blue", "#4f7cff"), ("Purple", "#a66cff"), ("Pink", "#ff5fa2"), ("White", "#e8e8e8"),
+    ]
 }
 
 public struct PanelSession: Equatable, Identifiable, Sendable {
@@ -131,12 +137,27 @@ private struct Lenient<T: Decodable>: Decodable {
 
 public enum ClientMessage: Equatable, Sendable {
     case open(id: String)
+    case pin(id: String, pinned: Bool)
+    /// The agent stores icons with pins, so this also pins the session, and unpinning resets its icon.
+    case icon(id: String, icon: SessionIcon)
+
+    public var sessionId: String {
+        switch self {
+        case .open(let id), .pin(let id, _), .icon(let id, _): return id
+        }
+    }
 
     public var json: String {
+        let object: [String: Any]
         switch self {
         case .open(let id):
-            let body = try! JSONSerialization.data(withJSONObject: ["type": "open", "id": id], options: [.sortedKeys])
-            return String(decoding: body, as: UTF8.self)
+            object = ["type": "open", "id": id]
+        case .pin(let id, let pinned):
+            object = ["type": "pin", "id": id, "pinned": pinned]
+        case .icon(let id, let icon):
+            object = ["type": "icon", "id": id, "icon": ["character": icon.character, "color": icon.color]]
         }
+        let body = try! JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        return String(decoding: body, as: UTF8.self)
     }
 }

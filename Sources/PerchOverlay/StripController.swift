@@ -30,6 +30,7 @@ final class StripController {
         edge = Preferences.store.string(forKey: Self.edgeKey).flatMap(ScreenEdge.init(rawValue:)) ?? .right
         view.onHover = { [weak self] index in self?.hover(index) }
         view.onClick = { [weak self] index in self?.click(index) }
+        view.menuFor = { [weak self] index in self?.menu(for: index) }
         panel.contentView = view
 
         track { [weak self] in self?.relayout() }
@@ -109,9 +110,16 @@ final class StripController {
         render()
     }
 
+    private func menu(for index: Int) -> NSMenu? {
+        let shown = link.list.shown
+        guard shown.indices.contains(index) else { return nil }
+        hover(nil) // the label would sit under the menu
+        return CreatureMenu.make(for: shown[index]) { [link] message in link.send(message) }
+    }
+
     private func click(_ index: Int) {
         let shown = link.list.shown
-        if shown.indices.contains(index) { link.open(shown[index].id) }
+        if shown.indices.contains(index) { link.send(.open(id: shown[index].id)) }
     }
 }
 

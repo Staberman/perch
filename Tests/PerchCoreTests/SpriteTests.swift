@@ -81,4 +81,16 @@ func spriteTests() {
         expect(has(.error, 0, "#ff4d4d"))
         expect(has(.sleeping, 0, "#c8d0dc"))
     }
+
+    test("trimming drops the transparent margins around a sprite") {
+        let red = RGB(hex: "#ff0000")!
+        let pixels: Pixels = [
+            [nil, nil, nil, nil],
+            [nil, red, nil, nil],
+            [nil, nil, red, nil],
+            [nil, nil, nil, nil],
+        ]
+        expectEqual(trimmed(pixels), [[red, nil], [nil, red]])
+        expectEqual(trimmed([[nil, nil], [nil, nil]]), [])
+    }
 }
