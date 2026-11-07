@@ -73,13 +73,16 @@ final class MenuBar: NSObject, NSMenuDelegate {
 
     private static func icon() -> NSImage {
         let character = CharacterTemplate.named("default")
-        let eyes = Set([character.eyes.left, character.eyes.right].flatMap { x in
-            [(x, character.eyes.y), (x + 1, character.eyes.y), (x, character.eyes.y + 1), (x + 1, character.eyes.y + 1)].map { "\($0.0),\($0.1)" }
-        })
+        let eyes = character.eyes
+        func isEye(_ x: Int, _ y: Int) -> Bool {
+            let row = y == eyes.y || y == eyes.y + 1
+            let column = x == eyes.left || x == eyes.left + 1 || x == eyes.right || x == eyes.right + 1
+            return row && column
+        }
         let image = NSImage(size: NSSize(width: 16, height: 16), flipped: true) { _ in
             NSColor.black.setFill()
             for (y, row) in character.body.enumerated() {
-                for (x, cell) in row.enumerated() where cell != "." && !eyes.contains("\(x),\(y)") {
+                for (x, cell) in row.enumerated() where cell != "." && !isEye(x, y) {
                     NSRect(x: x, y: y, width: 1, height: 1).fill()
                 }
             }
