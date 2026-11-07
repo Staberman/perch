@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "skills": {
+    "code-review": {
+      "source": "elrincondeldev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/code-review/SKILL.md",
+      "computedHash": "b3039d2253cd3e338cfc4d9cd2c11666c2e109f1505706f9e772ded0d1e75a09"
+    },
+    "create-pr": {
+      "source": "elrincondeldev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/create-pr/SKILL.md",
+      "computedHash": "0a7d6b3efc53a41dc35098eec0022298812f469308084d676145b540fc2adee1"
+    },
+    "grilling": {
+      "source": "elrincondeldev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/grilling/SKILL.md",
+      "computedHash": "ca145861840956efcafbb52b82d5ec2f57e70caa0e340d11932995b66ba78382"
+    },
+    "learn-codebase": {
+      "source": "elrincondeldev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/learn-codebase/SKILL.md",
+      "computedHash": "abc2083bacf80548eb694689b07b153c48b323e91c7946ce759fdd473d2bf107"
+    },
+    "prototype": {
+      "source": "elrincondeldev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/prototype/SKILL.md",
+      "computedHash": "bf25f0c198e59977fbbc6f2a57bf460477c298246a464209eb48bdef759589d9"
+    },
+    "tdd": {
+      "source": "elrincondeldev/skills",
+      "sourceType": "github",
+      "skillPath": "skills/tdd/SKILL.md",
+      "computedHash": "ea08ee80b105fa835ca6ddfa5172d3424cb67164d4e1f144bfa9cc3f0c5ba2ba"
+    }
+  }
+}
