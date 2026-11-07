@@ -8,7 +8,28 @@ A floating strip on the edge of your Mac's screen with one animated pixel-art cr
 
 > **Not an official Anthropic project.** It is not affiliated with or endorsed by Anthropic. "Claude" is a trademark of Anthropic, PBC.
 
-> **Early development.** The overlay works, but it still relies on the agent from [claude-panel](https://github.com/elrincondeldev/claude-panel) and is built from source. A Homebrew install (`brew install elrincondeldev/tap/perch && perch setup`) is the next milestone.
+> **Early development.** Expect rough edges. macOS 14 or newer only.
+
+## Install
+
+```bash
+npx @elrincondeldev/perch setup
+```
+
+That's all: the strip appears on the right edge with one creature per running session, and it comes back at every login. Setup:
+
+- copies Perch's binaries into `~/Library/Application Support/perch/bin`;
+- adds hooks to `~/.claude/settings.json`, after backing it up, so Claude Code reports each event to Perch's agent;
+- starts the agent and the strip now and at every login, as LaunchAgents;
+- replaces [claude-panel](https://github.com/elrincondeldev/claude-panel)'s agent if you have it, keeping its pinned sessions, their looks and its pairing token.
+
+```bash
+npx @elrincondeldev/perch status             # what's installed and running
+npx @elrincondeldev/perch uninstall          # remove everything; asks before deleting pins and icons
+npx @elrincondeldev/perch setup --pi         # also let a claude-panel Raspberry Pi connect over your network
+```
+
+You need the Claude desktop app (sessions in its Code tab), the Claude Code CLI 2.1.285 or newer, and Node.js 18 or newer for `npx`.
 
 ## Features
 
@@ -18,41 +39,29 @@ A floating strip on the edge of your Mac's screen with one animated pixel-art cr
 - **Click** to open the session in the Claude desktop app, even one the app has stopped. The session in front is ringed in white.
 - **Right-click** (or control-click) to pin or unpin the session and pick its character and color.
 - **Stays out of the way**: the strip floats over every Space and full-screen app and never takes focus from the app you're using.
-- **Menu bar item** to show or hide the strip, move it to the left or right edge, and see how many sessions are waiting for you.
+- **Menu bar item** to show or hide the strip, move it to the left or right edge, and see how many sessions are waiting for you. Quit Perch there; it starts again at your next login.
 
 ## How it works
 
 ```
-Claude Code ─ hooks ─▶ agent ◀─ WebSocket (127.0.0.1:7778, token) ─ Perch overlay ─ menu bar
-claude agents ─ poll ─▶  └ SQLite: pins, icons
+Claude Code ─ hooks ─▶ perch agent ◀─ WebSocket (127.0.0.1:7778, token) ─ perch-overlay ─ menu bar
+claude agents ─ poll ─▶  └ SQLite: pins, icons                       └ claude-panel Pi (with --pi)
 ```
 
-- **The agent** tracks every session's state from Claude Code hooks and `claude agents --json`, keeps pins and icons, and opens sessions. For now it is claude-panel's agent, so the Raspberry Pi panel and Perch show the same sessions with the same looks.
-- **The overlay** (`perch-overlay`) is a native AppKit and Core Animation app that runs as an accessory: no Dock icon, just the strip and a menu bar item. It costs about 0.5 % of one CPU core and 13 MB of memory while it animates.
+- **`perch`** (`agent/`, Bun and TypeScript compiled into one binary) holds the CLI and the agent. The agent tracks every session's state from Claude Code hooks and `claude agents --json`, keeps pins and icons in SQLite, and opens sessions in the desktop app. It listens on 127.0.0.1 only, unless you set it up with `--pi`.
+- **`perch-overlay`** (`Sources/`, Swift) is a native AppKit and Core Animation app that runs as an accessory: no Dock icon, just the strip and a menu bar item. It costs about 0.5 % of one CPU core and 13 MB of memory while it animates.
+- **`shared/protocol.ts`** is the contract between them, and the Pi panel speaks it too.
 
-## Requirements
+| What the agent reads from Claude | Used for | Documented? |
+|---|---|---|
+| Hooks in `~/.claude/settings.json` | Instant state changes | Yes |
+| `claude agents --json` | Names, who is alive, corrections for missed hooks | Yes |
+| `claude --desktop --resume <id>` | Opening a session the desktop app doesn't know | Yes |
+| `claude://code/continue?session=local_…` | Opening any desktop-app session, running or stopped | No |
+| `~/Library/Application Support/Claude/claude-code-sessions/` | The app's sessions, and their `local_…` ids | No |
+| `setFocusedSession` in `~/Library/Logs/Claude/main.log` | Which session is in front | No |
 
-- macOS 14 or newer, with the Claude desktop app (sessions in its Code tab)
-- Command Line Tools for Xcode (`xcode-select --install`), Swift 5.9 or newer
-- [Bun](https://bun.sh) 1.3 or newer and the Claude Code CLI 2.1.285 or newer, for claude-panel's agent
-
-## Build and run from source
-
-1. Install claude-panel's agent. It forwards Claude Code hook events and starts at every login; the Raspberry Pi is optional.
-   ```bash
-   git clone https://github.com/elrincondeldev/claude-panel.git
-   cd claude-panel
-   bun run setup
-   ```
-2. Build and start Perch:
-   ```bash
-   git clone https://github.com/elrincondeldev/perch.git
-   cd perch
-   swift build -c release
-   nohup .build/release/perch-overlay >/dev/null 2>&1 &
-   ```
-
-Quit it from the creature in the menu bar. Only one copy runs at a time.
+If a Claude update breaks an undocumented source, only the feature it feeds stops working.
 
 ## Customizing the creatures
 
@@ -69,23 +78,31 @@ After editing, check the templates with `swift run PerchCoreTests` and rebuild.
 
 ## Development
 
+You need the Command Line Tools for Xcode (`xcode-select --install`) and [Bun](https://bun.sh) 1.3 or newer.
+
 ```bash
-swift build                    # debug build: .build/debug/perch-overlay
-swift run PerchCoreTests       # unit tests for the protocol, session list, status rules, sprites and layout
+(cd agent && bun install)
+bun test agent npm             # agent, CLI and npm launcher
+swift run PerchCoreTests       # protocol, session list, status rules, sprites and layout
+swift build                    # debug overlay: .build/debug/perch-overlay
+bun scripts/release.ts --arch arm64      # npm packages in dist/npm
+dist/npm/perch-darwin-arm64/bin/perch setup   # install that build
 ```
 
-The Command Line Tools for Xcode 15 ship without XCTest, so the tests are a plain executable that exits non-zero when a check fails.
+The Command Line Tools for Xcode 15 ship without XCTest, so the Swift tests are a plain executable that exits non-zero when a check fails.
+
+Pushing a `v*` tag runs `.github/workflows/release.yml`: it tests, builds for Apple Silicon and Intel, publishes the three npm packages with the `NPM_TOKEN` secret, and attaches the binaries to a GitHub release.
 
 ## Privacy
 
-- The overlay only talks to the agent on 127.0.0.1, with the pairing token from `~/Library/Application Support/claude-panel/config.json`. It sends nothing anywhere else and has no telemetry.
-- It stores its edge in the `com.elrincondeldev.perch` defaults and a lock file in `~/Library/Application Support/perch/`.
+- Everything stays on your Mac: the overlay only talks to the agent on 127.0.0.1, and the agent only listens there unless you choose `--pi`. No telemetry.
+- The WebSocket needs the pairing token in `~/Library/Application Support/perch/config.json`, and accepts only `open`, `pin`, `icon` and `library`, with validated arguments.
+- Perch keeps its data in `~/Library/Application Support/perch/`, its logs in `~/Library/Logs/perch/`, and the strip's edge in the `com.elrincondeldev.perch` defaults.
 - The hover label can show tool details such as a shell command, so anyone who can see your screen can read them.
 
 ## Roadmap
 
-- The agent moves into Perch, behind one `perch` command with `setup`, `uninstall` and `status`.
-- Releases built by GitHub Actions for Apple Silicon and Intel, installed with Homebrew.
+- Homebrew: `brew install elrincondeldev/tap/perch`, from the same release binaries.
 - Drag the strip to any edge, collapse it, global shortcuts to open sessions, and notifications when a session needs you.
 
 ## License

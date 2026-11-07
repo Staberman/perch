@@ -98,6 +98,10 @@ func protocolTests() {
         expectEqual(AgentConfig.token(fromJSON: Data("garbage".utf8)), nil)
     }
 
+    test("reads the token from Perch's agent, where agent/src/config.ts writes it") {
+        expect(AgentConfig.configFile.path.hasSuffix("/Library/Application Support/perch/config.json"), AgentConfig.configFile.path)
+    }
+
     test("builds the WebSocket URL with the token escaped") {
         let url = AgentConfig.webSocketURL(token: "a+b/c=")
         expectEqual(url.absoluteString, "ws://127.0.0.1:7778/ws?token=a%2Bb/c%3D")
