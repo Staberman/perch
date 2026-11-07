@@ -1,15 +1,27 @@
 name: Release
 
+# Tags publish; pull requests that touch what ships only build, so a broken build shows up before tagging.
 on:
   push:
     tags: ["v*"]
+  pull_request:
+    paths:
+      - "agent/**"
+      - "npm/**"
+      - "shared/**"
+      - "Sources/**"
+      - "Package.swift"
+      - "scripts/release.ts"
+      - ".github/workflows/release.yml"
 
 permissions:
   contents: write
 
 jobs:
   release:
-    runs-on: macos-14
+    runs-on: macos-15
+    env:
+      PUBLISH: ${{ startsWith(github.ref, 'refs/tags/v') }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -27,9 +39,12 @@ jobs:
           swift run PerchCoreTests
 
       - name: Build
-        run: bun scripts/release.ts --version "${GITHUB_REF_NAME#v}"
+        run: |
+          if [ "$PUBLISH" = true ]; then version="${GITHUB_REF_NAME#v}"; else version=0.0.0-ci; fi
+          bun scripts/release.ts --version "$version"
 
       - name: Publish to npm
+        if: env.PUBLISH == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -39,6 +54,7 @@ jobs:
           done
 
       - name: GitHub release
+        if: env.PUBLISH == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

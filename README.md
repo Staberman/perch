@@ -91,7 +91,7 @@ dist/npm/perch-darwin-arm64/bin/perch setup   # install that build
 
 The Command Line Tools for Xcode 15 ship without XCTest, so the Swift tests are a plain executable that exits non-zero when a check fails.
 
-Pushing a `v*` tag runs `.github/workflows/release.yml`: it tests, builds for Apple Silicon and Intel, publishes the three npm packages with the `NPM_TOKEN` secret, and attaches the binaries to a GitHub release.
+Pushing a `v*` tag runs `.github/workflows/release.yml`: it tests, builds for Apple Silicon and Intel, publishes the three npm packages with the `NPM_TOKEN` secret, and attaches the binaries to a GitHub release. Pull requests that touch what ships run the same build without publishing.
 
 ## Privacy
 
