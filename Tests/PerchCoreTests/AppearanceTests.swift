@@ -65,4 +65,19 @@ func appearanceTests() {
         expect(a.pixels.joined().compactMap { $0 }.allSatisfy { $0.r == $0.g && $0.g == $0.b })
         expect(a.pixels.joined().contains { $0 != nil })
     }
+
+    test("the add button is a plus where creatures stand, on a tile lit by hover") {
+        let plain = CreatureAppearance.addButton(hovered: false)
+        expectEqual(plain.tile, Tile())
+        expectEqual(plain.opacity, 1)
+        expectEqual(CreatureAppearance.addButton(hovered: true).tile, Tile(fill: .white(0.12)))
+
+        var lit = Set<[Int]>()
+        for (y, row) in plain.pixels.enumerated() {
+            for (x, color) in row.enumerated() where color != nil { lit.insert([x, y]) }
+        }
+        expect(lit.contains([11, 13]) && lit.contains([12, 14]), "the centre is lit")
+        expect(lit.allSatisfy { lit.contains([23 - $0[0], $0[1]]) && lit.contains([$0[0], 27 - $0[1]]) }, "mirrored both ways")
+        expect(lit.allSatisfy { $0[0] == 11 || $0[0] == 12 || $0[1] == 13 || $0[1] == 14 }, "only the two arms")
+    }
 }

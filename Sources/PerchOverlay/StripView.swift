@@ -54,6 +54,12 @@ final class StripView: NSView {
         }
     }
 
+    /// Opens `menu` beside cell `index`, outside any mouse event.
+    func popUp(_ menu: NSMenu, atCell index: Int) {
+        let cell = layout.cellFrame(index, in: bounds)
+        menu.popUp(positioning: nil, at: NSPoint(x: cell.minX, y: cell.maxY), in: self)
+    }
+
     func show(_ appearances: [CreatureAppearance]) {
         withoutAnimation {
             for (creature, appearance) in zip(creatures, appearances) { creature.show(appearance) }

@@ -7,6 +7,16 @@ extension PanelSession {
         state == .needsPermission || state == .needsInput
     }
 
+    /// Doing something or waiting on the user, or finished recently: the strip shows these even unpinned.
+    public func isActive(at now: Date) -> Bool {
+        guard live else { return false }
+        switch state {
+        case .working, .compacting, .needsPermission, .needsInput: return true
+        case .done, .error: return now.timeIntervalSince(stateSince) <= dozeAfter
+        case .idle, .ended: return false
+        }
+    }
+
     public func mood(at now: Date) -> Mood {
         switch state {
         case .working: return .working

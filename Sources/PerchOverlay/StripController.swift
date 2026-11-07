@@ -4,12 +4,20 @@ import PerchCore
 
 @MainActor
 final class StripController {
+    /// What sits in one cell of the strip: a session's creature, or the add button after the last one.
+    private enum Cell: Equatable {
+        case session(String)
+        case add
+    }
+
     private let link: AgentLink
     private let panel = OverlayPanel()
     private let view = StripView()
     private let label = HoverLabel()
     private var layout = StripLayout.fitting(count: 0, height: 0)
-    private var hoveredId: String?
+    /// The sessions the current layout has room for.
+    private var shown: [PanelSession] = []
+    private var hovered: Cell?
     private var clock: Timer?
     private static let framesPerSecond = 4.0
     private static let edgeKey = "edge"
@@ -42,16 +50,16 @@ final class StripController {
     }
 
     private func relayout() {
-        let shown = link.list.shown
+        shown = link.list.shown(at: Date())
         // The screen with the menu bar.
-        guard !hidden, !shown.isEmpty, let screen = NSScreen.screens.first else {
+        guard !hidden, let screen = NSScreen.screens.first else {
             panel.orderOut(nil)
             label.hide()
             stopClock()
-            hoveredId = nil // no mouseExited arrives for a window taken off screen
+            hovered = nil // no mouseExited arrives for a window taken off screen
             return
         }
-        layout = StripLayout.fitting(count: shown.count, height: screen.visibleFrame.height)
+        layout = StripLayout.fitting(count: shown.count + 1, height: screen.visibleFrame.height)
         let frame = layout.frame(in: screen.visibleFrame, edge: edge)
         if panel.frame != frame { panel.setFrame(frame, display: false) }
         view.arrange(layout, edge: edge)
@@ -62,26 +70,54 @@ final class StripController {
 
     private func render() {
         let now = Date()
+        let current = link.list.shown(at: now)
+        // A finished session that dozes off leaves the strip, which then needs a new layout.
+        guard current.map(\.id) == shown.map(\.id) else { return relayout() }
+        shown = current
+
         let frame = Int(now.timeIntervalSinceReferenceDate * Self.framesPerSecond)
-        let shown = link.list.shown
         let focusedId = link.list.focusedId
         view.show(shown.map {
-            CreatureAppearance(session: $0, focused: $0.id == focusedId, hovered: $0.id == hoveredId, frame: frame, now: now)
-        })
+            CreatureAppearance(session: $0, focused: $0.id == focusedId, hovered: hovered == .session($0.id), frame: frame, now: now)
+        } + [CreatureAppearance.addButton(hovered: hovered == .add)])
 
         let notice = link.notice
-        let labelled = hoveredId ?? notice?.sessionId
-        guard let index = shown.firstIndex(where: { $0.id == labelled }) else { return label.hide() }
-        let session = shown[index]
-        let failure = notice?.sessionId == session.id ? notice?.message : nil
+        let noticeCell = notice.map { $0.sessionId.map(Cell.session) ?? .add }
+        guard let labelled = hovered ?? noticeCell, let index = index(of: labelled) else { return label.hide() }
+        let failure = noticeCell == labelled ? notice?.message : nil
+        let name: String
+        let status: String
+        let color: NSColor
+        if index < shown.count {
+            let session = shown[index]
+            name = session.name
+            status = failure ?? session.statusLine(at: now)
+            color = failure != nil ? NSColor(paint: .danger) : session.needsAttention ? NSColor(paint: .accent) : Style.muted
+        } else {
+            name = "Add a session"
+            status = failure ?? "pin any session from the Claude app"
+            color = failure != nil ? NSColor(paint: .danger) : Style.muted
+        }
         label.show(HoverLabel.Content(
-            name: session.name,
-            status: failure ?? session.statusLine(at: now),
-            statusColor: failure != nil ? NSColor(paint: .danger) : session.needsAttention ? NSColor(paint: .accent) : Style.muted,
+            name: name,
+            status: status,
+            statusColor: color,
             frameBeside: layout.cellFrame(index, in: panel.frame),
             strip: panel.frame,
             edge: edge
         ))
+    }
+
+    private func cell(at index: Int) -> Cell? {
+        if shown.indices.contains(index) { return .session(shown[index].id) }
+        return index == shown.count ? .add : nil
+    }
+
+    private func index(of cell: Cell) -> Int? {
+        switch cell {
+        case .session(let id): return shown.firstIndex { $0.id == id }
+        case .add: return shown.count
+        }
     }
 
     private func startClock() {
@@ -103,23 +139,38 @@ final class StripController {
     }
 
     private func hover(_ index: Int?) {
-        let shown = link.list.shown
-        let id = index.flatMap { shown.indices.contains($0) ? shown[$0].id : nil }
-        guard id != hoveredId else { return }
-        hoveredId = id
+        let cell = index.flatMap(cell(at:))
+        guard cell != hovered else { return }
+        hovered = cell
         render()
     }
 
     private func menu(for index: Int) -> NSMenu? {
-        let shown = link.list.shown
-        guard shown.indices.contains(index) else { return nil }
+        guard case .session(let id)? = cell(at: index), let session = shown.first(where: { $0.id == id }) else { return nil }
         hover(nil) // the label would sit under the menu
-        return CreatureMenu.make(for: shown[index]) { [link] message in link.send(message) }
+        return CreatureMenu.make(for: session) { [link] message in link.send(message) }
     }
 
     private func click(_ index: Int) {
-        let shown = link.list.shown
-        if shown.indices.contains(index) { link.send(.open(id: shown[index].id)) }
+        switch cell(at: index) {
+        case .session(let id)?:
+            link.send(.open(id: id))
+        case .add?:
+            hover(nil)
+            link.requestLibrary { [weak self] entries in
+                // Not from inside the agent's receive loop: the menu runs its own event loop until it closes.
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated { self?.showLibrary(entries) }
+                }
+            }
+        case nil:
+            break
+        }
+    }
+
+    private func showLibrary(_ entries: [LibraryEntry]) {
+        let menu = LibraryMenu.make(entries, now: Date()) { [link] message in link.send(message) }
+        view.popUp(menu, atCell: shown.count)
     }
 }
 

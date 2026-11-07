@@ -16,7 +16,7 @@ A floating strip on the edge of your Mac's screen with one animated pixel-art cr
 npx @elrincondeldev/perch setup
 ```
 
-That's all: the strip appears on the right edge with one creature per running session, and it comes back at every login. Setup:
+That's all: the strip appears on the right edge with a **+** to pin your sessions, and it comes back at every login. Setup:
 
 - copies Perch's binaries into `~/Library/Application Support/perch/bin`;
 - adds hooks to `~/.claude/settings.json`, after backing it up, so Claude Code reports each event to Perch's agent;
@@ -33,7 +33,8 @@ You need the Claude desktop app (sessions in its Code tab), the Claude Code CLI 
 
 ## Features
 
-- **One creature per session**: pinned sessions first, then running ones by name. Each one animates its session's state: working, needs permission, asking you, compacting, done, error or closed. Finished sessions fall asleep after five minutes.
+- **The sessions you choose**: the **+** at the end of the strip lists every session in the Claude desktop app, recent or old, running or stopped; pick one to pin it. Sessions you haven't pinned show up only while they work or wait for you, and for five minutes after they finish, so a fresh install starts with just the +.
+- **One creature per session**, animated by its state: working, needs permission, asking you, compacting, done, error or closed. Finished sessions fall asleep after five minutes.
 - **Hard to miss when it needs you**: a permission request blinks the creature's tile in orange; a question rings it in orange.
 - **Hover** for the session's name and status, e.g. `Bash: npm test` or `done · 5m`.
 - **Click** to open the session in the Claude desktop app, even one the app has stopped. The session in front is ringed in white.

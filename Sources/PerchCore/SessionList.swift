@@ -1,3 +1,5 @@
+import Foundation
+
 public struct SessionList: Equatable, Sendable {
     public private(set) var sessions: [String: PanelSession] = [:]
     public private(set) var focusedId: String?
@@ -15,17 +17,18 @@ public struct SessionList: Equatable, Sendable {
             sessions[id] = nil
         case .focus(let id):
             focusedId = id
-        case .error:
+        case .error, .library:
             break
         }
     }
 
-    /// Ordered by name rather than activity, so creatures don't jump around as their states change.
-    public var shown: [PanelSession] {
+    /// Pinned sessions, then the active unpinned ones by name rather than activity, so creatures
+    /// don't jump around as their states change.
+    public func shown(at now: Date) -> [PanelSession] {
         let pinned = sessions.values.filter(\.pinned).sorted {
             ($0.position ?? 0, $0.id) < ($1.position ?? 0, $1.id)
         }
-        let others = sessions.values.filter { !$0.pinned && $0.live }.sorted {
+        let others = sessions.values.filter { !$0.pinned && $0.isActive(at: now) }.sorted {
             let order = $0.name.localizedCompare($1.name)
             return order == .orderedSame ? $0.id < $1.id : order == .orderedAscending
         }
