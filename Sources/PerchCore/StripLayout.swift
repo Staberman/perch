@@ -25,8 +25,9 @@ public struct StripLayout: Equatable, Sendable {
 
     /// Past the smallest scale the strip overflows, and `frame(in:edge:)` cuts it to the screen.
     public static func fitting(count: Int, height: CGFloat) -> StripLayout {
-        let scale = scales.first { CGFloat(count) * $0 * cellPixels + 2 * inset <= height } ?? scales.last!
-        return StripLayout(count: count, scale: scale)
+        let pixels = CGFloat(count) * cellPixels
+        let fits = { (scale: CGFloat) -> Bool in pixels * scale + 2 * inset <= height }
+        return StripLayout(count: count, scale: scales.first(where: fits) ?? scales[scales.count - 1])
     }
 
     public func frame(in visible: CGRect, edge: ScreenEdge) -> CGRect {
