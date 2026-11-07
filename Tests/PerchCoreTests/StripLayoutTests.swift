@@ -58,4 +58,11 @@ func stripLayoutTests() {
         let onLeft = StripLayout.labelFrame(size: label, beside: layout.cellFrame(1, in: leftStrip), strip: leftStrip, edge: .left)
         expectEqual(onLeft.minX, leftStrip.maxX + StripLayout.labelGap)
     }
+
+    test("inside a cell, the tile leaves one sprite pixel of margin and the sprite sits centred") {
+        let layout = StripLayout.fitting(count: 3, height: 900)
+        let cell = CGRect(x: 10, y: 20, width: 56, height: 56)
+        expectEqual(layout.tileRect(in: cell), CGRect(x: 12, y: 22, width: 52, height: 52))
+        expectEqual(layout.spriteRect(in: cell), CGRect(x: 14, y: 24, width: 48, height: 48))
+    }
 }

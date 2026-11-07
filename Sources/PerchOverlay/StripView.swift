@@ -1,182 +1,179 @@
+import AppKit
 import PerchCore
-import SwiftUI
 
-enum Theme {
-    static let accent = Color(rgb: RGB(hex: "#ff6b1a")!)
-    static let danger = Color(rgb: RGB(hex: "#ff4d4d")!)
-    static let backdrop = Color(white: 0.05, opacity: 0.78)
-    static let line = Color(white: 1, opacity: 0.1)
-    static let text = Color(white: 0.96)
-    static let muted = Color(white: 0.6)
-}
+/// Changes only the layers whose appearance differs from the last frame, so an unchanged strip costs
+/// Core Animation nothing.
+final class StripView: NSView {
+    var onHover: (Int?) -> Void = { _ in }
+    var onClick: (Int) -> Void = { _ in }
 
-private let framesPerSecond = 4.0
+    private var layout = StripLayout.fitting(count: 0, height: 0)
+    private let backdrop = CALayer()
+    private var creatures: [CreatureLayers] = []
+    private var pressed: Int?
 
-struct StripView: View {
-    let link: AgentLink
-    let state: StripState
+    init() {
+        super.init(frame: .zero)
+        layer = CALayer()
+        wantsLayer = true
+        backdrop.backgroundColor = Style.backdrop
+        backdrop.borderColor = Style.line
+        backdrop.borderWidth = 1
+        backdrop.cornerRadius = 10
+        layer!.addSublayer(backdrop)
+        // Always active, because Perch is never the active app.
+        addTrackingArea(NSTrackingArea(
+            rect: .zero,
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self
+        ))
+    }
 
-    var body: some View {
-        if state.onScreen {
-            TimelineView(.periodic(from: .now, by: 1 / framesPerSecond)) { context in
-                // Counted from a fixed epoch so every creature moves in step.
-                let frame = Int(context.date.timeIntervalSinceReferenceDate * framesPerSecond)
-                VStack(spacing: 0) {
-                    ForEach(link.list.shown) { session in
-                        CreatureCell(
-                            session: session,
-                            frame: frame,
-                            now: context.date,
-                            focused: session.id == link.list.focusedId,
-                            hovered: session.id == state.hoveredId,
-                            scale: state.layout.scale
-                        )
-                        .equatable()
-                        .frame(width: state.layout.cellSide, height: state.layout.cellSide)
-                    }
-                }
-                .padding(StripLayout.inset)
-                .frame(maxHeight: .infinity, alignment: .top)
-                .background(backdrop)
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    func arrange(_ layout: StripLayout, edge: ScreenEdge) {
+        withoutAnimation {
+            self.layout = layout
+            backdrop.frame = bounds
+            backdrop.maskedCorners = edge == .right
+                ? [.layerMinXMinYCorner, .layerMinXMaxYCorner]
+                : [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
+            while creatures.count < layout.count {
+                let creature = CreatureLayers()
+                layer!.addSublayer(creature.root)
+                creatures.append(creature)
+            }
+            while creatures.count > layout.count {
+                creatures.removeLast().root.removeFromSuperlayer()
+            }
+            for (index, creature) in creatures.enumerated() {
+                creature.place(in: layout.cellFrame(index, in: bounds), layout: layout)
             }
         }
     }
 
-    @MainActor private var backdrop: some View {
-        let r: CGFloat = 10
-        let shape = state.edge == .right
-            ? UnevenRoundedRectangle(topLeadingRadius: r, bottomLeadingRadius: r, bottomTrailingRadius: 0, topTrailingRadius: 0)
-            : UnevenRoundedRectangle(topLeadingRadius: 0, bottomLeadingRadius: 0, bottomTrailingRadius: r, topTrailingRadius: r)
-        return shape.fill(Theme.backdrop).overlay(shape.stroke(Theme.line, lineWidth: 1))
+    func show(_ appearances: [CreatureAppearance]) {
+        withoutAnimation {
+            for (creature, appearance) in zip(creatures, appearances) { creature.show(appearance) }
+        }
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseEntered(with event: NSEvent) { onHover(index(of: event)) }
+    override func mouseMoved(with event: NSEvent) { onHover(index(of: event)) }
+    override func mouseExited(with event: NSEvent) { onHover(nil) }
+
+    override func mouseDown(with event: NSEvent) {
+        pressed = index(of: event)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        defer { pressed = nil }
+        if let index = index(of: event), index == pressed { onClick(index) }
+    }
+
+    private func index(of event: NSEvent) -> Int? {
+        let point = convert(event.locationInWindow, from: nil)
+        return layout.index(atY: bounds.height - point.y)
     }
 }
 
-/// Equatable, so clock ticks redraw only the cells that change.
-struct CreatureCell: View, Equatable {
-    let pixels: Pixels
-    let look: Look
-    let live: Bool
-    let scale: CGFloat
+private final class CreatureLayers {
+    let root = CALayer()
+    private let tile = CALayer()
+    private let sprite = CALayer()
+    private var shown: CreatureAppearance?
 
-    init(session: PanelSession, frame: Int, now: Date, focused: Bool, hovered: Bool, scale: CGFloat) {
-        pixels = spriteFrame(character: session.icon.character, color: session.icon.tint, mood: session.mood(at: now), frame: frame)
-        look = Look(session: session, focused: focused, hovered: hovered, frame: frame)
-        live = session.live
-        self.scale = scale
+    init() {
+        sprite.magnificationFilter = .nearest
+        root.addSublayer(tile)
+        root.addSublayer(sprite)
     }
 
-    var body: some View {
-        let tile = RoundedRectangle(cornerRadius: 3 * scale)
-        ZStack {
-            tile.fill(look.fill)
-            tile.strokeBorder(look.border, lineWidth: look.borderWidth)
-            SpriteView(pixels: pixels, scale: scale)
-                .modifier(Outline(on: look.outlined))
-                .grayscale(live ? 0 : 1)
-                .opacity(live ? 1 : 0.45)
+    func place(in cell: CGRect, layout: StripLayout) {
+        root.frame = cell
+        tile.frame = layout.tileRect(in: root.bounds)
+        tile.cornerRadius = 3 * layout.scale
+        sprite.frame = layout.spriteRect(in: root.bounds)
+    }
+
+    func show(_ appearance: CreatureAppearance) {
+        guard appearance != shown else { return }
+        if appearance.pixels != shown?.pixels { sprite.contents = SpriteImages.image(for: appearance.pixels) }
+        if appearance.tile != shown?.tile {
+            tile.backgroundColor = appearance.tile.fill.map(CGColor.paint)
+            tile.borderColor = appearance.tile.border.map(CGColor.paint)
+            tile.borderWidth = appearance.tile.border == nil ? 0 : appearance.tile.borderWidth
         }
-        .padding(scale)
+        if appearance.opacity != shown?.opacity { sprite.opacity = Float(appearance.opacity) }
+        shown = appearance
     }
+}
 
-    /// Attention outranks focus.
-    struct Look: Equatable {
-        var fill = Color.clear
-        var border = Color.clear
-        var borderWidth: CGFloat = 1.5
-        /// Set when the fill may share the sprite's color.
-        var outlined = false
+enum Style {
+    static let backdrop = CGColor(gray: 0.05, alpha: 0.78)
+    static let line = CGColor(gray: 1, alpha: 0.1)
+    static let text = NSColor(white: 0.96, alpha: 1)
+    static let muted = NSColor(white: 0.6, alpha: 1)
+}
 
-        init(session: PanelSession, focused: Bool, hovered: Bool, frame: Int) {
-            if hovered { fill = Color(white: 1, opacity: 0.12) }
-            if focused {
-                fill = Color(white: 1, opacity: hovered ? 0.3 : 0.22)
-                border = Color(white: 1, opacity: 0.75)
+extension CGColor {
+    static func paint(_ paint: Paint) -> CGColor {
+        CGColor(srgbRed: CGFloat(paint.rgb.r) / 255, green: CGFloat(paint.rgb.g) / 255, blue: CGFloat(paint.rgb.b) / 255, alpha: paint.alpha)
+    }
+}
+
+extension NSColor {
+    convenience init(paint: Paint) {
+        self.init(cgColor: CGColor.paint(paint))!
+    }
+}
+
+/// Animations cycle through a few frames; reusing their images lets Core Animation keep its
+/// converted copies instead of converting a new image on every frame.
+private enum SpriteImages {
+    private static var cache: [Pixels: CGImage] = [:]
+    private static let limit = 512
+
+    static func image(for pixels: Pixels) -> CGImage? {
+        if let image = cache[pixels] { return image }
+        if cache.count >= limit { cache.removeAll() }
+        let image = CGImage.sprite(pixels)
+        cache[pixels] = image
+        return image
+    }
+}
+
+private extension CGImage {
+    static func sprite(_ pixels: Pixels) -> CGImage? {
+        let height = pixels.count
+        let width = pixels.first?.count ?? 0
+        var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        for (y, row) in pixels.enumerated() {
+            for (x, color) in row.enumerated() {
+                guard let color else { continue }
+                let i = (y * width + x) * 4
+                bytes[i] = color.r
+                bytes[i + 1] = color.g
+                bytes[i + 2] = color.b
+                bytes[i + 3] = 255
             }
-            switch session.state {
-            case .needsPermission:
-                let lit = frame % 4 < 2
-                fill = lit ? Theme.accent : Theme.accent.opacity(0.25)
-                border = Theme.accent
-                borderWidth = 2
-                outlined = true
-            case .needsInput:
-                fill = Theme.accent.opacity(frame % 8 < 4 ? 0.35 : 0.2)
-                border = Theme.accent
-                borderWidth = 2
-                outlined = true
-            case .error:
-                border = Theme.danger
-            default:
-                break
-            }
         }
+        guard let provider = CGDataProvider(data: Data(bytes) as CFData) else { return nil }
+        return CGImage(
+            width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent
+        )
     }
 }
 
-private struct Outline: ViewModifier {
-    let on: Bool
-
-    func body(content: Content) -> some View {
-        if on {
-            content
-                .shadow(color: .black, radius: 0, x: 1, y: 0)
-                .shadow(color: .black, radius: 0, x: -1, y: 0)
-                .shadow(color: .black, radius: 0, x: 0, y: 1)
-                .shadow(color: .black, radius: 0, x: 0, y: -1)
-        } else {
-            content
-        }
-    }
-}
-
-struct SpriteView: View {
-    let pixels: Pixels
-    let scale: CGFloat
-
-    var body: some View {
-        Canvas { context, _ in
-            var paths: [RGB: Path] = [:]
-            for (y, row) in pixels.enumerated() {
-                for (x, color) in row.enumerated() {
-                    guard let color else { continue }
-                    paths[color, default: Path()].addRect(CGRect(x: CGFloat(x) * scale, y: CGFloat(y) * scale, width: scale, height: scale))
-                }
-            }
-            for (color, path) in paths { context.fill(path, with: .color(Color(rgb: color))) }
-        }
-        .frame(width: CGFloat(spriteSize) * scale, height: CGFloat(spriteSize) * scale)
-    }
-}
-
-struct HoverLabelView: View {
-    let link: AgentLink
-    let state: StripState
-
-    var body: some View {
-        let id = state.hoveredId ?? link.notice?.sessionId
-        let alignment: HorizontalAlignment = state.edge == .right ? .trailing : .leading
-        if let session = link.list.shown.first(where: { $0.id == id }) {
-            let notice = link.notice?.sessionId == session.id ? link.notice?.message : nil
-            VStack(alignment: alignment, spacing: 2) {
-                Text(session.name)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Theme.text)
-                Text(notice ?? session.statusLine(at: .now))
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(notice != nil ? Theme.danger : session.needsAttention ? Theme.accent : Theme.muted)
-            }
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.backdrop).overlay(RoundedRectangle(cornerRadius: 8).stroke(Theme.line)))
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: Alignment(horizontal: alignment, vertical: .center))
-        }
-    }
-}
-
-extension Color {
-    init(rgb: RGB) {
-        self.init(.sRGB, red: Double(rgb.r) / 255, green: Double(rgb.g) / 255, blue: Double(rgb.b) / 255)
-    }
+private func withoutAnimation(_ changes: () -> Void) {
+    CATransaction.begin()
+    CATransaction.setDisableActions(true)
+    changes()
+    CATransaction.commit()
 }

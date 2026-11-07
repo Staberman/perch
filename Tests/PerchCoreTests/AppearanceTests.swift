@@ -1,0 +1,68 @@
+import Foundation
+import PerchCore
+
+private let black = RGB(r: 0, g: 0, b: 0)
+
+private func look(_ s: PanelSession, focused: Bool = false, hovered: Bool = false, frame: Int = 1) -> CreatureAppearance {
+    CreatureAppearance(session: s, focused: focused, hovered: hovered, frame: frame, now: now)
+}
+
+func appearanceTests() {
+    test("a plain session is its sprite on a bare tile") {
+        let s = session(state: .done)
+        let a = look(s)
+        expectEqual(a.tile, Tile())
+        expectEqual(a.opacity, 1)
+        expectEqual(a.pixels, spriteFrame(character: s.icon.character, color: s.icon.tint, mood: .idle, frame: 1))
+    }
+
+    test("hover tints the tile; focus tints it more and rings it") {
+        expectEqual(look(session(), hovered: true).tile, Tile(fill: .white(0.12)))
+        expectEqual(look(session(), focused: true).tile, Tile(fill: .white(0.22), border: .white(0.75)))
+        expectEqual(look(session(), focused: true, hovered: true).tile.fill, .white(0.3))
+    }
+
+    test("a permission request blinks the tile in accent once a second, even when focused") {
+        for focused in [false, true] {
+            let lit = look(session(state: .needsPermission), focused: focused, frame: 0).tile
+            let dim = look(session(state: .needsPermission), focused: focused, frame: 2).tile
+            expectEqual(lit, Tile(fill: .accent, border: .accent, borderWidth: 2))
+            expectEqual(dim, Tile(fill: Paint(rgb: Paint.accent.rgb, alpha: 0.25), border: .accent, borderWidth: 2))
+            expectEqual(look(session(state: .needsPermission), focused: focused, frame: 4).tile, lit)
+        }
+    }
+
+    test("waiting for input rings the tile in accent and pulses its fill") {
+        let pulse = (0..<8).map { look(session(state: .needsInput), frame: $0).tile }
+        expect(pulse.allSatisfy { $0.border == .accent && $0.borderWidth == 2 })
+        expectEqual(pulse[0].fill, Paint(rgb: Paint.accent.rgb, alpha: 0.35))
+        expectEqual(pulse[4].fill, Paint(rgb: Paint.accent.rgb, alpha: 0.2))
+    }
+
+    test("errors ring the tile in the danger color") {
+        expectEqual(look(session(state: .error)).tile.border, .danger)
+    }
+
+    test("a creature on an accent tile gets a black outline around its sprite") {
+        let s = session(state: .needsPermission)
+        let plain = spriteFrame(character: s.icon.character, color: s.icon.tint, mood: .alert, frame: 1)
+        let outlined = look(s).pixels
+        for y in 0..<spriteSize {
+            for x in 0..<spriteSize {
+                if let c = plain[y][x] { expectEqual(outlined[y][x], c); continue }
+                let touches = [(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)].contains { nx, ny in
+                    (0..<spriteSize).contains(nx) && (0..<spriteSize).contains(ny) && plain[ny][nx] != nil
+                }
+                expectEqual(outlined[y][x], touches ? black : nil)
+            }
+        }
+        expect(!look(session(state: .done)).pixels.joined().contains(black), "no outline on a bare tile")
+    }
+
+    test("a closed session's creature is grey and faded") {
+        let a = look(session(state: .ended, live: false))
+        expectEqual(a.opacity, 0.45)
+        expect(a.pixels.joined().compactMap { $0 }.allSatisfy { $0.r == $0.g && $0.g == $0.b })
+        expect(a.pixels.joined().contains { $0 != nil })
+    }
+}

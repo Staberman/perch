@@ -35,6 +35,15 @@ public struct StripLayout: Equatable, Sendable {
         return CGRect(x: x, y: visible.midY - height / 2, width: size.width, height: height)
     }
 
+    public func tileRect(in cell: CGRect) -> CGRect {
+        cell.insetBy(dx: scale, dy: scale)
+    }
+
+    public func spriteRect(in cell: CGRect) -> CGRect {
+        let inset = CGFloat(Self.cellPaddingPixels) * scale
+        return cell.insetBy(dx: inset, dy: inset)
+    }
+
     /// `y` is measured down from the strip's top edge.
     public func index(atY y: CGFloat) -> Int? {
         guard y >= Self.inset else { return nil }
