@@ -143,6 +143,41 @@ test("the library lists desktop sessions, and pinning one that isn't running ado
   ws.close();
 });
 
+test("the library also lists live terminal sessions, newest first; the desktop entry wins a duplicate", async () => {
+  const NEWER = { ...DESKTOP[0]!, localId: "local_newer", sessionId: "44444444-4444-4444-8444-444444444444", title: "Newer", lastActivityAt: Date.now() + 60_000 };
+  desktopSessions = async () => [NEWER, ...DESKTOP];
+  const GONE = "55555555-5555-4555-8555-555555555555";
+  await postHook({ hook_event_name: "UserPromptSubmit", session_id: ID, cwd: "/tmp/demo" });
+  await postHook({ hook_event_name: "UserPromptSubmit", session_id: IDLE, cwd: "/tmp/elsewhere" }); // also in the desktop list
+  await postHook({ hook_event_name: "UserPromptSubmit", session_id: GONE, cwd: "/tmp/gone" });
+  await postHook({ hook_event_name: "SessionEnd", session_id: GONE, cwd: "/tmp/gone", reason: "other" });
+  const { ws, next } = await connect();
+  await next(); // snapshot
+
+  ws.send(JSON.stringify({ type: "library" }));
+  expect(await next()).toEqual({
+    type: "library",
+    sessions: [
+      { id: NEWER.sessionId, name: "Newer", cwd: "/Users/dev/idle", lastActivityAt: NEWER.lastActivityAt, pinned: false },
+      { id: ID, name: "demo", cwd: "/tmp/demo", lastActivityAt: expect.any(Number), pinned: false },
+      { id: IDLE, name: "Idle work", cwd: "/Users/dev/idle", lastActivityAt: 5000, pinned: false },
+    ],
+  });
+  ws.close();
+});
+
+test("a terminal session from the library can be pinned", async () => {
+  await postHook({ hook_event_name: "Stop", session_id: ID, cwd: "/tmp/demo" });
+  const { ws, next } = await connect();
+  await next(); // snapshot
+
+  ws.send(JSON.stringify({ type: "pin", id: ID, pinned: true }));
+  expect(await next()).toMatchObject({ type: "session", session: { id: ID, pinned: true } });
+  ws.send(JSON.stringify({ type: "library" }));
+  expect(await next()).toMatchObject({ type: "library", sessions: [{ id: ID, pinned: true }, { id: IDLE }] });
+  ws.close();
+});
+
 test("terminal opens a new Terminal tab; a failure comes back as an error", async () => {
   let opens = 0;
   terminal = async () => {

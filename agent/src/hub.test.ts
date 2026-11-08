@@ -128,6 +128,21 @@ describe("SessionHub", () => {
     expect(hub.has(B)).toBe(true);
     expect(changes.at(-1)).toEqual({ type: "removed", id: A });
   });
+
+  test("liveEntries lists the running sessions for the + library", () => {
+    const { hub, tick } = setup();
+    hub.handleHook(ev(A, "UserPromptSubmit"));
+    hub.setPinned(A, true);
+    tick(5000);
+    hub.handleAgents([{ sessionId: B, name: "Polled", cwd: "/Users/dev/polled", status: "idle", startedAt: 0 }]);
+    hub.adopt("c0ffee00-0000-4000-8000-000000000000", "Closed", "/Users/dev/closed", 1); // not running
+
+    expect(hub.liveEntries()).toEqual([
+      // A hook-known session was last active at its last event; a polled one, when its state began.
+      { id: A, name: "claude-panel", cwd: "/Users/dev/claude-panel", lastActivityAt: 1_000_000, pinned: true },
+      { id: B, name: "Polled", cwd: "/Users/dev/polled", lastActivityAt: 1_005_000, pinned: false },
+    ]);
+  });
 });
 
 describe("parseClientMessage", () => {
