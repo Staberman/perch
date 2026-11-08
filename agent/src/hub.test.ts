@@ -143,6 +143,17 @@ describe("SessionHub", () => {
       { id: B, name: "Polled", cwd: "/Users/dev/polled", lastActivityAt: 1_005_000, pinned: false },
     ]);
   });
+
+  test("liveEntries leaves out background sessions, which can't be opened in a terminal", () => {
+    const { hub } = setup();
+    const C = "c0ffee00-0000-4000-8000-000000000000";
+    hub.handleHook(ev(A, "UserPromptSubmit")); // hooks only: kind unknown
+    hub.handleAgents([
+      { sessionId: B, cwd: "/Users/dev/term", kind: "interactive", status: "idle", startedAt: 0 },
+      { sessionId: C, cwd: "/Users/dev/bg", kind: "background", status: "idle", startedAt: 0 },
+    ]);
+    expect(hub.liveEntries().map((e) => e.id)).toEqual([A, B]);
+  });
 });
 
 describe("parseClientMessage", () => {

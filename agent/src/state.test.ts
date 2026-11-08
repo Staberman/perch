@@ -181,6 +181,13 @@ describe("reconcile (poll of `claude agents --json`)", () => {
     expect(next!.pid).toBe(42);
   });
 
+  test("the poll records the session's kind, even when nothing else changed", () => {
+    expect(reconcile(new Map(), [agent("idle", { kind: "background" })], T0)[0]!.kind).toBe("background");
+    // As after a restart: the store doesn't keep the kind.
+    const rec = { ...run([ev("UserPromptSubmit")]), name: "Claude panel", pid: 42 };
+    expect(reconcile(records(rec), [agent("busy")], T0 + 500)).toMatchObject([{ kind: "interactive" }]);
+  });
+
   test("fresh hook state wins over a contradicting poll", () => {
     const rec = run([ev("UserPromptSubmit")]);
     const [next] = reconcile(records(rec), [agent("idle")], T0 + 1000);

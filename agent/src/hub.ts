@@ -50,10 +50,13 @@ export class SessionHub {
     return [...this.records.values()].map((rec) => this.toPanel(rec));
   }
 
-  /** Running sessions as library entries, so the + can pin one that the strip hides. */
+  /**
+   * Running sessions as library entries, so the + can pin one that the strip hides. Background
+   * sessions (`claude agents`, `--bg`) are left out: they have no terminal to open them in.
+   */
   liveEntries(): LibraryEntry[] {
     return [...this.records.values()]
-      .filter((rec) => rec.live)
+      .filter((rec) => rec.live && rec.kind !== "background")
       .map((rec) => ({
         id: rec.id,
         name: rec.name ?? basename(rec.cwd),
