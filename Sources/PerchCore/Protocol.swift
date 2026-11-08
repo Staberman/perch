@@ -178,11 +178,13 @@ public enum ClientMessage: Equatable, Sendable {
     case icon(id: String, icon: SessionIcon)
     /// Asks for the desktop sessions that can be pinned; answered with `ServerMessage.library`.
     case library
+    /// Opens a shell, without Claude, in a new Terminal.app tab.
+    case terminal
 
     public var sessionId: String? {
         switch self {
         case .open(let id), .pin(let id, _), .icon(let id, _): return id
-        case .library: return nil
+        case .library, .terminal: return nil
         }
     }
 
@@ -197,6 +199,8 @@ public enum ClientMessage: Equatable, Sendable {
             object = ["type": "icon", "id": id, "icon": ["character": icon.character, "color": icon.color]]
         case .library:
             object = ["type": "library"]
+        case .terminal:
+            object = ["type": "terminal"]
         }
         let body = try! JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
         return String(decoding: body, as: UTF8.self)

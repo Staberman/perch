@@ -71,6 +71,7 @@ enum CreatureMenu {
 
 enum LibraryMenu {
     /// The Claude app's sessions, most recent first; choosing one pins it, or unpins it when it already is.
+    /// Ends with an item that opens a plain shell in Terminal.app.
     static func make(_ entries: [LibraryEntry], now: Date, send: @escaping (ClientMessage) -> Void) -> NSMenu {
         let menu = NSMenu()
         menu.addItem(.sectionHeader(title: "Pin a session"))
@@ -88,6 +89,8 @@ enum LibraryMenu {
             item.toolTip = entry.cwd
             menu.addItem(item)
         }
+        menu.addItem(.separator())
+        menu.addItem(ActionItem("New Terminal tab") { send(.terminal) })
         return menu
     }
 }

@@ -142,6 +142,11 @@ describe("parseClientMessage", () => {
     });
   });
 
+  test("terminal takes no arguments: anything else sent with it is dropped", () => {
+    expect(parseClientMessage(JSON.stringify({ type: "terminal" }))).toEqual({ type: "terminal" });
+    expect(parseClientMessage(JSON.stringify({ type: "terminal", command: "rm -rf ~", id: A }))).toEqual({ type: "terminal" });
+  });
+
   test("rejects everything else", () => {
     const bad = [
       "not json",
