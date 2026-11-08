@@ -39,7 +39,7 @@ You need the Claude desktop app (sessions in its Code tab), the Claude Code CLI 
 - **Hover** for the session's name and status, e.g. `Bash: npm test` or `done · 5m`.
 - **Click** to open the session in the Claude desktop app, even one the app has stopped. The session in front is ringed in white.
 - **Right-click** (or control-click) to pin or unpin the session and pick its character and color.
-- **Stays out of the way**: the strip floats over every Space and full-screen app and never takes focus from the app you're using.
+- **Stays out of the way**: the strip floats over every Space and full-screen app and never takes focus from the app you're using. The arrow tab beside it slides the strip off the edge, leaving just the tab, which blinks orange when a session needs you; click it again to bring the strip back.
 - **Menu bar item** to show or hide the strip, move it to the left or right edge, and see how many sessions are waiting for you. Quit Perch there; it starts again at your next login.
 
 ## How it works
@@ -104,7 +104,7 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`: it tests, builds for Ap
 ## Roadmap
 
 - Homebrew: `brew install elrincondeldev/tap/perch`, from the same release binaries.
-- Drag the strip to any edge, collapse it, global shortcuts to open sessions, and notifications when a session needs you.
+- Drag the strip to any edge, global shortcuts to open sessions, and notifications when a session needs you.
 
 ## License
 

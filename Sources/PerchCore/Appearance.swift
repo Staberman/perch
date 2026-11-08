@@ -50,11 +50,34 @@ public struct CreatureAppearance: Equatable, Sendable {
 
     /// The tile at the end of the strip that pins sessions: a plus in its middle.
     public static func addButton(hovered: Bool) -> CreatureAppearance {
-        let color = RGB(hex: "#8b909a")!
         var pixels = Pixels(repeating: Array(repeating: nil, count: spriteSize), count: spriteSize)
-        for x in 8...15 { for y in 11...12 { pixels[y][x] = color } }
-        for x in 11...12 { for y in 8...15 { pixels[y][x] = color } }
+        for x in 8...15 { for y in 11...12 { pixels[y][x] = controlColor } }
+        for x in 11...12 { for y in 8...15 { pixels[y][x] = controlColor } }
         return CreatureAppearance(pixels: pixels, tile: hovered ? Tile(fill: .white(0.12)) : Tile(), opacity: 1)
+    }
+
+    /// The tab that collapses the strip: an arrow toward the edge while open, back out while collapsed.
+    /// Collapsed, it carries the mark of its most urgent session.
+    public static func tab(for sessions: [PanelSession], collapsed: Bool, edge: ScreenEdge, hovered: Bool, frame: Int, now: Date) -> CreatureAppearance {
+        let chevron = ["...X", "..XX", ".XX.", "XX..", ".XX.", "..XX", "...X"]
+        let (width, height) = StripLayout.tabPixels
+        let left = (width - 4) / 2
+        let top = (height - chevron.count) / 2
+        let pointsRight = (edge == .right) != collapsed
+        var pixels = Pixels(repeating: Array(repeating: nil, count: width), count: height)
+        for (y, row) in chevron.enumerated() {
+            for (x, cell) in row.enumerated() where cell == "X" {
+                pixels[top + y][left + (pointsRight ? 3 - x : x)] = controlColor
+            }
+        }
+
+        var tile = hovered ? Tile(fill: .white(0.12)) : Tile()
+        let marks = sessions.compactMap { s in urgency(of: s, at: now).map { (session: s, rank: $0) } }
+        if collapsed, let urgent = marks.min(by: { $0.rank < $1.rank })?.session {
+            tile = marked(tile, by: urgent, frame: frame, now: now)
+            if urgent.needsAttention { pixels = outlined(pixels) }
+        }
+        return CreatureAppearance(pixels: pixels, tile: tile, opacity: 1)
     }
 
     public init(session: PanelSession, focused: Bool, hovered: Bool, frame: Int, now: Date) {
@@ -64,7 +87,21 @@ public struct CreatureAppearance: Equatable, Sendable {
             tile.fill = .white(hovered ? 0.3 : 0.22)
             tile.border = .white(0.75)
         }
-        // Attention outranks focus.
+        tile = Self.marked(tile, by: session, frame: frame, now: now)
+
+        var pixels = spriteFrame(character: session.icon.character, color: session.icon.tint, mood: session.mood(at: now), frame: frame)
+        // An accent tile may share the sprite's color.
+        if session.needsAttention { pixels = outlined(pixels) }
+        if !session.live { pixels = grayscaled(pixels) }
+
+        self.pixels = pixels
+        self.tile = tile
+        opacity = session.live ? 1 : 0.45
+    }
+
+    /// Attention outranks focus and hover.
+    private static func marked(_ tile: Tile, by session: PanelSession, frame: Int, now: Date) -> Tile {
+        var tile = tile
         switch session.state {
         case .needsPermission:
             tile = Tile(fill: frame % 4 < 2 ? .accent : Paint.accent.with(alpha: 0.25), border: .accent, borderWidth: 2)
@@ -77,17 +114,22 @@ public struct CreatureAppearance: Equatable, Sendable {
         default:
             break
         }
+        return tile
+    }
 
-        var pixels = spriteFrame(character: session.icon.character, color: session.icon.tint, mood: session.mood(at: now), frame: frame)
-        // An accent tile may share the sprite's color.
-        if session.needsAttention { pixels = outlined(pixels) }
-        if !session.live { pixels = grayscaled(pixels) }
-
-        self.pixels = pixels
-        self.tile = tile
-        opacity = session.live ? 1 : 0.45
+    /// Lower is more urgent; nil carries no mark.
+    private static func urgency(of session: PanelSession, at now: Date) -> Int? {
+        switch session.state {
+        case .needsPermission: return 0
+        case .needsInput: return 1
+        case .error: return 2
+        case .done where session.mood(at: now) == .finished: return 3
+        default: return nil
+        }
     }
 }
+
+private let controlColor = RGB(hex: "#8b909a")!
 
 private func outlined(_ pixels: Pixels) -> Pixels {
     let black = RGB(r: 0, g: 0, b: 0)
