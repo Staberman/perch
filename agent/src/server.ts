@@ -19,7 +19,7 @@ export interface ServerOptions {
   panelPort: number;
   panelHost?: string;
   /** Replaceable so tests don't open real sessions or tabs, or read the real desktop app. */
-  open?: (id: string) => Promise<OpenResult>;
+  open?: (id: string, cwd?: string) => Promise<OpenResult>;
   terminal?: () => Promise<OpenResult>;
   desktopSessions?: () => Promise<DesktopSession[]>;
 }
@@ -109,7 +109,7 @@ export function startServers({
 
           switch (msg.type) {
             case "open": {
-              const result = await open(msg.id);
+              const result = await open(msg.id, hub.get(msg.id)?.cwd);
               // The desktop log confirms focus a moment later; show it right away.
               if (result.ok) hub.setFocused(msg.id);
               else send(ws, { type: "error", message: result.error });
