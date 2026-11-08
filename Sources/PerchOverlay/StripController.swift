@@ -4,10 +4,11 @@ import PerchCore
 
 @MainActor
 final class StripController {
-    /// What sits in one cell of the strip: a session's creature, or the add button after the last one.
+    /// What the pointer can be over: a session's creature, the add button after the last one, or the tab.
     private enum Cell: Equatable {
         case session(String)
         case add
+        case tab
     }
 
     private let link: AgentLink
@@ -21,6 +22,8 @@ final class StripController {
     private var clock: Timer?
     private static let framesPerSecond = 4.0
     private static let edgeKey = "edge"
+    private static let collapsedKey = "collapsed"
+    private var collapsed: Bool
 
     var hidden = false {
         didSet { relayout() }
@@ -36,8 +39,9 @@ final class StripController {
     init(link: AgentLink) {
         self.link = link
         edge = Preferences.store.string(forKey: Self.edgeKey).flatMap(ScreenEdge.init(rawValue:)) ?? .right
-        view.onHover = { [weak self] index in self?.hover(index) }
-        view.onClick = { [weak self] index in self?.click(index) }
+        collapsed = Preferences.store.bool(forKey: Self.collapsedKey)
+        view.onHover = { [weak self] hit in self?.hover(hit) }
+        view.onClick = { [weak self] hit in self?.click(hit) }
         view.menuFor = { [weak self] index in self?.menu(for: index) }
         panel.contentView = view
 
@@ -62,7 +66,7 @@ final class StripController {
         layout = StripLayout.fitting(count: shown.count + 1, height: screen.visibleFrame.height)
         let frame = layout.frame(in: screen.visibleFrame, edge: edge)
         if panel.frame != frame { panel.setFrame(frame, display: false) }
-        view.arrange(layout, edge: edge)
+        view.arrange(layout, edge: edge, collapsed: collapsed)
         panel.orderFrontRegardless()
         startClock()
         render()
@@ -76,48 +80,47 @@ final class StripController {
         shown = current
 
         let frame = Int(now.timeIntervalSinceReferenceDate * Self.framesPerSecond)
-        let focusedId = link.list.focusedId
-        view.show(shown.map {
-            CreatureAppearance(session: $0, focused: $0.id == focusedId, hovered: hovered == .session($0.id), frame: frame, now: now)
-        } + [CreatureAppearance.addButton(hovered: hovered == .add)])
+        if !collapsed {
+            let focusedId = link.list.focusedId
+            view.show(shown.map {
+                CreatureAppearance(session: $0, focused: $0.id == focusedId, hovered: hovered == .session($0.id), frame: frame, now: now)
+            } + [CreatureAppearance.addButton(hovered: hovered == .add)])
+        }
+        view.showTab(CreatureAppearance.tab(for: shown, collapsed: collapsed, edge: edge, hovered: hovered == .tab, frame: frame, now: now))
 
         let notice = link.notice
         let noticeCell = notice.map { $0.sessionId.map(Cell.session) ?? .add }
-        guard let labelled = hovered ?? noticeCell, let index = index(of: labelled) else { return label.hide() }
-        let failure = noticeCell == labelled ? notice?.message : nil
-        let name: String
-        let status: String
-        let color: NSColor
-        if index < shown.count {
-            let session = shown[index]
-            name = session.name
-            status = failure ?? session.statusLine(at: now)
-            color = failure != nil ? NSColor(paint: .danger) : session.needsAttention ? NSColor(paint: .accent) : Style.muted
-        } else {
-            name = "Add a session"
-            status = failure ?? "pin any session from the Claude app"
-            color = failure != nil ? NSColor(paint: .danger) : Style.muted
+        guard let labelled = hovered ?? noticeCell, !collapsed || labelled == .tab,
+              let content = labelContent(for: labelled, failure: noticeCell == labelled ? notice?.message : nil, now: now)
+        else { return label.hide() }
+        label.show(content)
+    }
+
+    private func labelContent(for cell: Cell, failure: String?, now: Date) -> HoverLabel.Content? {
+        let failed = NSColor(paint: .danger)
+        let strip = layout.stripRect(in: panel.frame, edge: edge)
+        func content(_ name: String, _ status: String, _ color: NSColor, beside: CGRect, outside: CGRect? = nil) -> HoverLabel.Content {
+            HoverLabel.Content(name: name, status: status, statusColor: color, frameBeside: beside, outside: outside ?? panel.frame, edge: edge)
         }
-        label.show(HoverLabel.Content(
-            name: name,
-            status: status,
-            statusColor: color,
-            frameBeside: layout.cellFrame(index, in: panel.frame),
-            strip: panel.frame,
-            edge: edge
-        ))
+        switch cell {
+        case .session(let id):
+            guard let index = shown.firstIndex(where: { $0.id == id }) else { return nil }
+            let session = shown[index]
+            let color = failure != nil ? failed : session.needsAttention ? NSColor(paint: .accent) : Style.muted
+            return content(session.name, failure ?? session.statusLine(at: now), color, beside: layout.cellFrame(index, in: strip))
+        case .add:
+            let status = failure ?? "pin any session from the Claude app"
+            return content("Add a session", status, failure != nil ? failed : Style.muted, beside: layout.cellFrame(shown.count, in: strip))
+        case .tab:
+            let tab = layout.tabRect(in: panel.frame, edge: edge, collapsed: collapsed)
+            let color = shown.contains(where: \.needsAttention) ? NSColor(paint: .accent) : Style.muted
+            return content(collapsed ? "Expand" : "Collapse", summary(of: shown), color, beside: tab, outside: collapsed ? tab : nil)
+        }
     }
 
     private func cell(at index: Int) -> Cell? {
         if shown.indices.contains(index) { return .session(shown[index].id) }
         return index == shown.count ? .add : nil
-    }
-
-    private func index(of cell: Cell) -> Int? {
-        switch cell {
-        case .session(let id): return shown.firstIndex { $0.id == id }
-        case .add: return shown.count
-        }
     }
 
     private func startClock() {
@@ -138,8 +141,13 @@ final class StripController {
         clock = nil
     }
 
-    private func hover(_ index: Int?) {
-        let cell = index.flatMap(cell(at:))
+    private func hover(_ hit: StripHit?) {
+        let cell: Cell?
+        switch hit {
+        case .cell(let index)?: cell = self.cell(at: index)
+        case .tab?: cell = .tab
+        case nil: cell = nil
+        }
         guard cell != hovered else { return }
         hovered = cell
         render()
@@ -151,7 +159,8 @@ final class StripController {
         return CreatureMenu.make(for: session) { [link] message in link.send(message) }
     }
 
-    private func click(_ index: Int) {
+    private func click(_ hit: StripHit) {
+        guard case .cell(let index) = hit else { return toggleCollapsed() }
         switch cell(at: index) {
         case .session(let id)?:
             link.send(.open(id: id))
@@ -163,9 +172,17 @@ final class StripController {
                     MainActor.assumeIsolated { self?.showLibrary(entries) }
                 }
             }
-        case nil:
+        case .tab?, nil:
             break
         }
+    }
+
+    private func toggleCollapsed() {
+        collapsed.toggle()
+        Preferences.store.set(collapsed, forKey: Self.collapsedKey)
+        hovered = nil // the tab slides out from under the pointer
+        render()
+        view.slide(collapsed: collapsed)
     }
 
     private func showLibrary(_ entries: [LibraryEntry]) {

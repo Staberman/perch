@@ -25,7 +25,8 @@ extension PanelSession {
         case .compacting: return .compacting
         case .error: return .error
         case .ended: return .sleeping
-        case .idle, .done: return now.timeIntervalSince(stateSince) > dozeAfter ? .sleeping : .idle
+        case .idle: return now.timeIntervalSince(stateSince) > dozeAfter ? .sleeping : .idle
+        case .done: return now.timeIntervalSince(stateSince) > dozeAfter ? .sleeping : .finished
         }
     }
 
@@ -39,6 +40,17 @@ extension PanelSession {
         case .idle, .done: return "\(state.rawValue) · \(ago(since: stateSince, now: now))"
         case .ended: return "closed · \(ago(since: stateSince, now: now))"
         }
+    }
+}
+
+/// What the strip holds, as the tab's status line.
+public func summary(of sessions: [PanelSession]) -> String {
+    let needy = sessions.filter(\.needsAttention).count
+    if needy > 0 { return "\(needy) need\(needy == 1 ? "s" : "") you" }
+    switch sessions.count {
+    case 0: return "no sessions"
+    case 1: return "1 session"
+    default: return "\(sessions.count) sessions"
     }
 }
 
