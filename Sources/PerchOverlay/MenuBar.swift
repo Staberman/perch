@@ -20,7 +20,7 @@ final class MenuBar: NSObject, NSMenuDelegate {
 
         track { [weak self] in
             guard let self else { return }
-            let waiting = link.list.shown.filter(\.needsAttention).count
+            let waiting = link.list.shown(at: Date()).filter(\.needsAttention).count
             item.button?.title = waiting > 0 ? " \(waiting)" : ""
         }
     }
@@ -49,7 +49,7 @@ final class MenuBar: NSObject, NSMenuDelegate {
     private var statusText: String {
         switch link.status {
         case .online:
-            let count = link.list.shown.count
+            let count = link.list.shown(at: Date()).count
             return "Connected · \(count) session\(count == 1 ? "" : "s")"
         case .connecting: return "Connecting to the agent…"
         case .offline: return "Agent not running · retrying"

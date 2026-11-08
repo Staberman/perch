@@ -4,24 +4,36 @@ import PerchCore
 /// Changes only the layers whose appearance differs from the last frame, so an unchanged strip costs
 /// Core Animation nothing.
 final class StripView: NSView {
-    var onHover: (Int?) -> Void = { _ in }
-    var onClick: (Int) -> Void = { _ in }
+    var onHover: (StripHit?) -> Void = { _ in }
+    var onClick: (StripHit) -> Void = { _ in }
     var menuFor: (Int) -> NSMenu? = { _ in nil }
 
     private var layout = StripLayout.fitting(count: 0, height: 0)
+    private var edge = ScreenEdge.right
+    private var collapsed = false
+    /// Holds the strip and its tab, and slides toward the edge to collapse them; the view clips it.
+    private let drawer = CALayer()
     private let backdrop = CALayer()
-    private var creatures: [CreatureLayers] = []
-    private var pressed: Int?
+    private let tabBackdrop = CALayer()
+    private let tab = CellLayers()
+    private var creatures: [CellLayers] = []
+    private var pressed: StripHit?
+    private static let slideDuration: CFTimeInterval = 0.25
 
     init() {
         super.init(frame: .zero)
         layer = CALayer()
         wantsLayer = true
-        backdrop.backgroundColor = Style.backdrop
-        backdrop.borderColor = Style.line
-        backdrop.borderWidth = 1
+        layer!.masksToBounds = true
+        for panel in [backdrop, tabBackdrop] {
+            panel.backgroundColor = Style.backdrop
+            panel.borderColor = Style.line
+            panel.borderWidth = 1
+            drawer.addSublayer(panel)
+        }
         backdrop.cornerRadius = 10
-        layer!.addSublayer(backdrop)
+        drawer.addSublayer(tab.root)
+        layer!.addSublayer(drawer)
         // Always active, because Perch is never the active app.
         addTrackingArea(NSTrackingArea(
             rect: .zero,
@@ -33,25 +45,59 @@ final class StripView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    func arrange(_ layout: StripLayout, edge: ScreenEdge) {
+    func arrange(_ layout: StripLayout, edge: ScreenEdge, collapsed: Bool) {
         withoutAnimation {
             self.layout = layout
-            backdrop.frame = bounds
-            backdrop.maskedCorners = edge == .right
+            self.edge = edge
+            self.collapsed = collapsed
+            drawer.bounds = bounds
+            drawer.position = drawerPosition
+            let innerCorners: CACornerMask = edge == .right
                 ? [.layerMinXMinYCorner, .layerMinXMaxYCorner]
                 : [.layerMaxXMinYCorner, .layerMaxXMaxYCorner]
+            let strip = layout.stripRect(in: bounds, edge: edge)
+            backdrop.frame = strip
+            backdrop.maskedCorners = innerCorners
+
+            let tabRect = layout.tabRect(in: bounds, edge: edge, collapsed: false)
+            tabBackdrop.frame = tabRect
+            tabBackdrop.cornerRadius = 3 * layout.scale
+            tabBackdrop.maskedCorners = innerCorners
+            tab.place(tile: tabRect, sprite: tabRect, cornerRadius: 3 * layout.scale, corners: innerCorners)
+
             while creatures.count < layout.count {
-                let creature = CreatureLayers()
-                layer!.addSublayer(creature.root)
+                let creature = CellLayers()
+                drawer.addSublayer(creature.root)
                 creatures.append(creature)
             }
             while creatures.count > layout.count {
                 creatures.removeLast().root.removeFromSuperlayer()
             }
             for (index, creature) in creatures.enumerated() {
-                creature.place(in: layout.cellFrame(index, in: bounds), layout: layout)
+                let cell = layout.cellFrame(index, in: strip)
+                creature.place(tile: layout.tileRect(in: cell), sprite: layout.spriteRect(in: cell), cornerRadius: 3 * layout.scale)
             }
         }
+    }
+
+    /// Slides the strip past the edge, leaving its tab, or back.
+    func slide(collapsed: Bool) {
+        self.collapsed = collapsed
+        CATransaction.begin()
+        CATransaction.setAnimationDuration(Self.slideDuration)
+        CATransaction.setAnimationTimingFunction(CAMediaTimingFunction(name: collapsed ? .easeIn : .easeOut))
+        drawer.position = drawerPosition
+        CATransaction.commit()
+    }
+
+    private var drawerPosition: CGPoint {
+        CGPoint(x: bounds.midX + (collapsed ? layout.collapseOffset(edge: edge) : 0), y: bounds.midY)
+    }
+
+    /// Opens `menu` beside cell `index`, outside any mouse event.
+    func popUp(_ menu: NSMenu, atCell index: Int) {
+        let cell = layout.cellFrame(index, in: layout.stripRect(in: bounds, edge: edge))
+        menu.popUp(positioning: nil, at: NSPoint(x: cell.minX, y: cell.maxY), in: self)
     }
 
     func show(_ appearances: [CreatureAppearance]) {
@@ -60,15 +106,19 @@ final class StripView: NSView {
         }
     }
 
+    func showTab(_ appearance: CreatureAppearance) {
+        withoutAnimation { tab.show(appearance) }
+    }
+
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-    override func mouseEntered(with event: NSEvent) { onHover(index(of: event)) }
-    override func mouseMoved(with event: NSEvent) { onHover(index(of: event)) }
+    override func mouseEntered(with event: NSEvent) { onHover(hit(event)) }
+    override func mouseMoved(with event: NSEvent) { onHover(hit(event)) }
     override func mouseExited(with event: NSEvent) { onHover(nil) }
 
     override func mouseDown(with event: NSEvent) {
         if event.modifierFlags.contains(.control) { return showMenu(for: event) }
-        pressed = index(of: event)
+        pressed = hit(event)
     }
 
     override func rightMouseDown(with event: NSEvent) {
@@ -76,22 +126,22 @@ final class StripView: NSView {
     }
 
     private func showMenu(for event: NSEvent) {
-        guard let index = index(of: event), let menu = menuFor(index) else { return }
+        guard case .cell(let index)? = hit(event), let menu = menuFor(index) else { return }
         NSMenu.popUpContextMenu(menu, with: event, for: self)
     }
 
     override func mouseUp(with event: NSEvent) {
         defer { pressed = nil }
-        if let index = index(of: event), index == pressed { onClick(index) }
+        if let hit = hit(event), hit == pressed { onClick(hit) }
     }
 
-    private func index(of event: NSEvent) -> Int? {
-        let point = convert(event.locationInWindow, from: nil)
-        return layout.index(atY: bounds.height - point.y)
+    private func hit(_ event: NSEvent) -> StripHit? {
+        layout.hit(convert(event.locationInWindow, from: nil), in: bounds, edge: edge, collapsed: collapsed)
     }
 }
 
-private final class CreatureLayers {
+/// A tile with a sprite on it: a creature, the add button or the tab.
+private final class CellLayers {
     let root = CALayer()
     private let tile = CALayer()
     private let sprite = CALayer()
@@ -103,11 +153,11 @@ private final class CreatureLayers {
         root.addSublayer(sprite)
     }
 
-    func place(in cell: CGRect, layout: StripLayout) {
-        root.frame = cell
-        tile.frame = layout.tileRect(in: root.bounds)
-        tile.cornerRadius = 3 * layout.scale
-        sprite.frame = layout.spriteRect(in: root.bounds)
+    func place(tile tileFrame: CGRect, sprite spriteFrame: CGRect, cornerRadius: CGFloat, corners: CACornerMask = .all) {
+        tile.frame = tileFrame
+        tile.cornerRadius = cornerRadius
+        tile.maskedCorners = corners
+        sprite.frame = spriteFrame
     }
 
     func show(_ appearance: CreatureAppearance) {
@@ -121,6 +171,10 @@ private final class CreatureLayers {
         if appearance.opacity != shown?.opacity { sprite.opacity = Float(appearance.opacity) }
         shown = appearance
     }
+}
+
+private extension CACornerMask {
+    static let all: CACornerMask = [.layerMinXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMinYCorner, .layerMaxXMaxYCorner]
 }
 
 enum Style {

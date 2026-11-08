@@ -16,7 +16,7 @@ A floating strip on the edge of your Mac's screen with one animated pixel-art cr
 npx @elrincondeldev/perch setup
 ```
 
-That's all: the strip appears on the right edge with one creature per running session, and it comes back at every login. Setup:
+That's all: the strip appears on the right edge with a **+** to pin your sessions, and it comes back at every login. Setup:
 
 - copies Perch's binaries into `~/Library/Application Support/perch/bin`;
 - adds hooks to `~/.claude/settings.json`, after backing it up, so Claude Code reports each event to Perch's agent;
@@ -33,12 +33,13 @@ You need the Claude desktop app (sessions in its Code tab), the Claude Code CLI 
 
 ## Features
 
-- **One creature per session**: pinned sessions first, then running ones by name. Each one animates its session's state: working, needs permission, asking you, compacting, done, error or closed. Finished sessions fall asleep after five minutes.
-- **Hard to miss when it needs you**: a permission request blinks the creature's tile in orange; a question rings it in orange.
+- **The sessions you choose**: the **+** at the end of the strip lists every session in the Claude desktop app, recent or old, running or stopped; pick one to pin it. Sessions you haven't pinned show up only while they work or wait for you, and for five minutes after they finish, so a fresh install starts with just the +.
+- **One creature per session**, animated by its state: working, needs permission, asking you, compacting, done, error or closed. Finished sessions fall asleep after five minutes.
+- **Hard to miss when it needs you**: a permission request blinks the creature's tile in orange; a question rings it in orange. A working creature hops with typing dots over its head, and one that finished its turn holds up a green check, ringed in green, until you reply or it falls asleep.
 - **Hover** for the session's name and status, e.g. `Bash: npm test` or `done · 5m`.
 - **Click** to open the session in the Claude desktop app, even one the app has stopped. The session in front is ringed in white.
 - **Right-click** (or control-click) to pin or unpin the session and pick its character and color.
-- **Stays out of the way**: the strip floats over every Space and full-screen app and never takes focus from the app you're using.
+- **Stays out of the way**: the strip floats over every Space and full-screen app and never takes focus from the app you're using. The arrow tab beside it slides the strip off the edge, leaving just the tab, which blinks orange when a session needs you; click it again to bring the strip back.
 - **Menu bar item** to show or hide the strip, move it to the left or right edge, and see how many sessions are waiting for you. Quit Perch there; it starts again at your next login.
 
 ## How it works
@@ -103,7 +104,7 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`: it tests, builds for Ap
 ## Roadmap
 
 - Homebrew: `brew install elrincondeldev/tap/perch`, from the same release binaries.
-- Drag the strip to any edge, collapse it, global shortcuts to open sessions, and notifications when a session needs you.
+- Drag the strip to any edge, global shortcuts to open sessions, and notifications when a session needs you.
 
 ## License
 

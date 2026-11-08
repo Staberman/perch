@@ -24,7 +24,7 @@ export interface ServerOptions {
 }
 
 const TOPIC = "panel";
-const LIBRARY_SIZE = 40;
+const LIBRARY_SIZE = 100;
 
 export function startServers({
   hub,

@@ -11,15 +11,36 @@ func statusTests() {
         expectEqual(session(state: .ended).mood(at: now), .sleeping)
     }
 
-    test("a finished session dozes off after five minutes") {
-        expectEqual(session(state: .done, stateSince: now - 60).mood(at: now), .idle)
+    test("a finished session waits for you, then dozes off after five minutes") {
+        expectEqual(session(state: .done, stateSince: now - 60).mood(at: now), .finished)
         expectEqual(session(state: .idle, stateSince: now - 60).mood(at: now), .idle)
         expectEqual(session(state: .done, stateSince: now - 6 * 60).mood(at: now), .sleeping)
+    }
+
+    test("active: working or waiting on the user, or finished less than five minutes ago") {
+        for state in [SessionState.working, .compacting, .needsPermission, .needsInput] {
+            expect(session(state: state).isActive(at: now), "\(state)")
+        }
+        expect(session(state: .done, stateSince: now - 60).isActive(at: now))
+        expect(session(state: .error, stateSince: now - 60).isActive(at: now))
+        expect(!session(state: .done, stateSince: now - 6 * 60).isActive(at: now))
+        expect(!session(state: .error, stateSince: now - 6 * 60).isActive(at: now))
+        expect(!session(state: .idle).isActive(at: now))
+        expect(!session(state: .ended, live: false).isActive(at: now))
+        expect(!session(state: .working, live: false).isActive(at: now), "its process is gone")
     }
 
     test("only permission and input requests need the user") {
         let needy = SessionState.allCases.filter { session(state: $0).needsAttention }
         expectEqual(needy, [.needsPermission, .needsInput])
+    }
+
+    test("summarises the strip for its tab") {
+        expectEqual(summary(of: []), "no sessions")
+        expectEqual(summary(of: [session(state: .working)]), "1 session")
+        expectEqual(summary(of: [session(state: .working), session(state: .done)]), "2 sessions")
+        expectEqual(summary(of: [session(state: .needsInput), session(state: .working)]), "1 needs you")
+        expectEqual(summary(of: [session(state: .needsInput), session(state: .needsPermission)]), "2 need you")
     }
 
     test("ago") {

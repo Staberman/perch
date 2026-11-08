@@ -60,11 +60,17 @@ func protocolTests() {
     }
 
     test("ignores messages it doesn't use and anything malformed") {
-        expectEqual(ServerMessage.parse(#"{"type":"library","sessions":[]}"#), nil)
         expectEqual(ServerMessage.parse(#"{"type":"surprise"}"#), nil)
         expectEqual(ServerMessage.parse(#"{"type":"removed"}"#), nil)
         expectEqual(ServerMessage.parse("not json"), nil)
         expectEqual(ServerMessage.parse("[]"), nil)
+    }
+
+    test("decodes the session library, skipping entries it can't read") {
+        let json = #"{"type":"library","sessions":[{"id":"a","name":"Old work","cwd":"/src","lastActivityAt":5000,"pinned":true},{"id":42}]}"#
+        expectEqual(ServerMessage.parse(json), .library([
+            LibraryEntry(id: "a", name: "Old work", cwd: "/src", lastActivityAt: Date(timeIntervalSince1970: 5), pinned: true),
+        ]))
     }
 
     test("encodes open, pin and icon") {
@@ -72,6 +78,7 @@ func protocolTests() {
             try JSONSerialization.jsonObject(with: Data(message.json.utf8)) as? NSDictionary
         }
         expectEqual(try object(.open(id: "abc")), ["type": "open", "id": "abc"])
+        expectEqual(try object(.library), ["type": "library"])
         expectEqual(try object(.pin(id: "abc", pinned: true)), ["type": "pin", "id": "abc", "pinned": true])
         expectEqual(
             try object(.icon(id: "abc", icon: SessionIcon(character: "cat", color: "#4f7cff"))),
@@ -79,11 +86,12 @@ func protocolTests() {
         )
     }
 
-    test("every client message names its session") {
+    test("client messages name their session, except the library request") {
         let icon = SessionIcon.default
         for message in [ClientMessage.open(id: "a"), .pin(id: "a", pinned: false), .icon(id: "a", icon: icon)] {
             expectEqual(message.sessionId, "a")
         }
+        expectEqual(ClientMessage.library.sessionId, nil)
     }
 
     test("the color palette matches the Pi panel's and includes the default") {

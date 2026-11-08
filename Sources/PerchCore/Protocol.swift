@@ -91,6 +91,37 @@ extension PanelSession: Decodable {
     }
 }
 
+/// A desktop-app session that can be pinned, running or not.
+public struct LibraryEntry: Equatable, Sendable, Decodable {
+    public var id: String
+    public var name: String
+    public var cwd: String
+    public var lastActivityAt: Date
+    public var pinned: Bool
+
+    public init(id: String, name: String, cwd: String, lastActivityAt: Date, pinned: Bool) {
+        self.id = id
+        self.name = name
+        self.cwd = cwd
+        self.lastActivityAt = lastActivityAt
+        self.pinned = pinned
+    }
+
+    private enum Keys: String, CodingKey { case id, name, cwd, lastActivityAt, pinned }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        let lastActivityEpochMs = try c.decode(Double.self, forKey: .lastActivityAt)
+        self.init(
+            id: try c.decode(String.self, forKey: .id),
+            name: try c.decode(String.self, forKey: .name),
+            cwd: try c.decode(String.self, forKey: .cwd),
+            lastActivityAt: Date(timeIntervalSince1970: lastActivityEpochMs / 1000),
+            pinned: try c.decode(Bool.self, forKey: .pinned)
+        )
+    }
+}
+
 public enum ServerMessage: Equatable, Sendable {
     case snapshot(sessions: [PanelSession], focusedId: String?)
     case session(PanelSession)
@@ -98,6 +129,8 @@ public enum ServerMessage: Equatable, Sendable {
     /// The session in front in the desktop app.
     case focus(id: String?)
     case error(message: String)
+    /// Reply to a library request, most recent first.
+    case library([LibraryEntry])
 
     /// Nil for malformed or unknown messages.
     public static func parse(_ text: String) -> ServerMessage? {
@@ -116,6 +149,8 @@ public enum ServerMessage: Equatable, Sendable {
             return (try? decoder.decode(Focus.self, from: data)).map { .focus(id: $0.id) }
         case "error":
             return (try? decoder.decode(Failure.self, from: data)).map { .error(message: $0.message) }
+        case "library":
+            return (try? decoder.decode(Library.self, from: data)).map { .library($0.sessions.compactMap(\.value)) }
         default:
             return nil
         }
@@ -127,6 +162,7 @@ public enum ServerMessage: Equatable, Sendable {
     private struct Removed: Decodable { let id: String }
     private struct Focus: Decodable { let id: String? }
     private struct Failure: Decodable { let message: String }
+    private struct Library: Decodable { let sessions: [Lenient<LibraryEntry>] }
 }
 
 /// Lets one unreadable session be skipped instead of failing the whole snapshot.
@@ -140,10 +176,13 @@ public enum ClientMessage: Equatable, Sendable {
     case pin(id: String, pinned: Bool)
     /// The agent stores icons with pins, so this also pins the session, and unpinning resets its icon.
     case icon(id: String, icon: SessionIcon)
+    /// Asks for the desktop sessions that can be pinned; answered with `ServerMessage.library`.
+    case library
 
-    public var sessionId: String {
+    public var sessionId: String? {
         switch self {
         case .open(let id), .pin(let id, _), .icon(let id, _): return id
+        case .library: return nil
         }
     }
 
@@ -156,6 +195,8 @@ public enum ClientMessage: Equatable, Sendable {
             object = ["type": "pin", "id": id, "pinned": pinned]
         case .icon(let id, let icon):
             object = ["type": "icon", "id": id, "icon": ["character": icon.character, "color": icon.color]]
+        case .library:
+            object = ["type": "library"]
         }
         let body = try! JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
         return String(decoding: body, as: UTF8.self)

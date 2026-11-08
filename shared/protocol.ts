@@ -2,8 +2,8 @@
  * Contract between the agent and its clients (the Perch overlay, mirrored in
  * Sources/PerchCore/Protocol.swift, and claude-panel's Pi panel), over a WebSocket at
  * ws://127.0.0.1:PANEL_PORT/ws?token=<pairing token>, or the Mac's LAN address with `--lan`.
- * The agent sends a snapshot on connect, then one message per change. Clients show sessions
- * that are `live || pinned`.
+ * The agent sends a snapshot on connect, then one message per change. The Pi panel shows sessions
+ * that are `live || pinned`; Perch shows pinned ones and those working or waiting on the user.
  */
 
 export const PANEL_PORT = 7778;

@@ -69,6 +69,29 @@ enum CreatureMenu {
     }
 }
 
+enum LibraryMenu {
+    /// The Claude app's sessions, most recent first; choosing one pins it, or unpins it when it already is.
+    static func make(_ entries: [LibraryEntry], now: Date, send: @escaping (ClientMessage) -> Void) -> NSMenu {
+        let menu = NSMenu()
+        menu.addItem(.sectionHeader(title: "Pin a session"))
+        if entries.isEmpty {
+            menu.addItem(withTitle: "No sessions in the Claude app", action: nil, keyEquivalent: "")
+        }
+        for entry in entries {
+            let item = ActionItem(entry.name, checked: entry.pinned) { send(.pin(id: entry.id, pinned: !entry.pinned)) }
+            let title = NSMutableAttributedString(string: entry.name)
+            title.append(NSAttributedString(
+                string: "  \(ago(since: entry.lastActivityAt, now: now))",
+                attributes: [.foregroundColor: NSColor.secondaryLabelColor]
+            ))
+            item.attributedTitle = title
+            item.toolTip = entry.cwd
+            menu.addItem(item)
+        }
+        return menu
+    }
+}
+
 private final class ActionItem: NSMenuItem {
     private let handler: () -> Void
 

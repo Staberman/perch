@@ -13,7 +13,8 @@ final class AgentLink {
     }
 
     struct Notice: Equatable {
-        let sessionId: String
+        /// Nil when the notice is about the add button's request for the session library.
+        let sessionId: String?
         let message: String
     }
 
@@ -23,7 +24,8 @@ final class AgentLink {
 
     @ObservationIgnored private var task: URLSessionWebSocketTask?
     @ObservationIgnored private var retryDelay = AgentLink.minRetry
-    @ObservationIgnored private var lastSentTo: String?
+    @ObservationIgnored private var lastSent: ClientMessage?
+    @ObservationIgnored private var libraryReply: (([LibraryEntry]) -> Void)?
     @ObservationIgnored private var noticeExpiry: Task<Void, Never>?
 
     private static let minRetry: Duration = .seconds(1)
@@ -40,8 +42,14 @@ final class AgentLink {
         guard status == .online, let task else {
             return show(Notice(sessionId: message.sessionId, message: "not connected to the agent"))
         }
-        lastSentTo = message.sessionId
+        lastSent = message
         task.send(.string(message.json)) { _ in }
+    }
+
+    /// `reply` runs once, with the desktop sessions that can be pinned, most recent first.
+    func requestLibrary(then reply: @escaping ([LibraryEntry]) -> Void) {
+        libraryReply = reply
+        send(.library)
     }
 
     private func connect() {
@@ -72,11 +80,16 @@ final class AgentLink {
             // The agent answers a bad token by refusing the upgrade, so any message means we're in.
             status = .online
             retryDelay = Self.minRetry
-            // The agent's errors don't name a session; they answer the last message sent.
-            if case .error(let text) = parsed, let id = lastSentTo {
-                show(Notice(sessionId: id, message: text))
+            switch parsed {
+            case .error(let text):
+                // The agent's errors don't name a session; they answer the last message sent.
+                if let lastSent { show(Notice(sessionId: lastSent.sessionId, message: text)) }
+            case .library(let entries):
+                libraryReply?(entries)
+                libraryReply = nil
+            default:
+                list.apply(parsed)
             }
-            list.apply(parsed)
         }
     }
 
