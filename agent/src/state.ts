@@ -41,6 +41,8 @@ export interface SessionRecord {
   stateSince: number;
   /** Time of the last hook event; 0 if only the poll has seen the session. */
   lastEventAt: number;
+  /** From the poll: "interactive" (a terminal) or "background" (`claude agents`, `--bg`). Not persisted. */
+  kind?: string;
 }
 
 /** How long hook-derived state wins over a contradicting poll. */
@@ -166,10 +168,10 @@ function reconcileOne(prev: SessionRecord | undefined, agent: AgentEntry, now: n
   const polled = stateFromStatus(agent.status);
 
   if (!prev) {
-    return { ...newRecord(agent.sessionId, agent.cwd, now, polled), name: agent.name ?? null, pid: agent.pid ?? null, lastEventAt: 0 };
+    return { ...newRecord(agent.sessionId, agent.cwd, now, polled), name: agent.name ?? null, pid: agent.pid ?? null, lastEventAt: 0, kind: agent.kind };
   }
 
-  const rec: SessionRecord = { ...prev, name: agent.name ?? prev.name, cwd: agent.cwd, pid: agent.pid ?? prev.pid, live: true };
+  const rec: SessionRecord = { ...prev, name: agent.name ?? prev.name, cwd: agent.cwd, pid: agent.pid ?? prev.pid, live: true, kind: agent.kind ?? prev.kind };
 
   if (prev.state === "ended") return moveTo(rec, polled, null, now);
   if (now - prev.lastEventAt <= GRACE_MS) return rec;
@@ -196,7 +198,9 @@ function moveTo(rec: SessionRecord, state: SessionState, activity: string | null
 }
 
 function sameRecord(a: SessionRecord, b: SessionRecord) {
-  return (Object.keys(a) as (keyof SessionRecord)[]).every((k) => a[k] === b[k]);
+  // Both sides' keys: an optional field such as kind may exist only in b.
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]) as Set<keyof SessionRecord>;
+  return [...keys].every((k) => a[k] === b[k]);
 }
 
 function oneLine(value: unknown) {
