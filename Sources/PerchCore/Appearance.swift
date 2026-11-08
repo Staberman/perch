@@ -46,12 +46,12 @@ public struct CreatureAppearance: Equatable, Sendable {
         self.opacity = opacity
     }
 
-    /// The tile at the end of the strip that pins sessions: a plus where a creature would stand.
+    /// The tile at the end of the strip that pins sessions: a plus in its middle.
     public static func addButton(hovered: Bool) -> CreatureAppearance {
         let color = RGB(hex: "#8b909a")!
         var pixels = Pixels(repeating: Array(repeating: nil, count: spriteSize), count: spriteSize)
-        for x in 8...15 { for y in 13...14 { pixels[y][x] = color } }
-        for x in 11...12 { for y in 10...17 { pixels[y][x] = color } }
+        for x in 8...15 { for y in 11...12 { pixels[y][x] = color } }
+        for x in 11...12 { for y in 8...15 { pixels[y][x] = color } }
         return CreatureAppearance(pixels: pixels, tile: hovered ? Tile(fill: .white(0.12)) : Tile(), opacity: 1)
     }
 
