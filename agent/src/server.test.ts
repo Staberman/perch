@@ -18,7 +18,7 @@ const DESKTOP: DesktopSession[] = [
 ];
 
 let servers: ReturnType<typeof startServers>;
-let opened: string[];
+let opened: [id: string, cwd: string | undefined][];
 let desktopSessions: () => Promise<DesktopSession[]>;
 let terminal: () => Promise<OpenResult>;
 
@@ -32,8 +32,8 @@ beforeEach(() => {
     hookPort: 0, // 0 = any free port
     panelPort: 0,
     panelHost: "127.0.0.1",
-    open: async (id) => {
-      opened.push(id);
+    open: async (id, cwd) => {
+      opened.push([id, cwd]);
       return { ok: true, command: ["fake-open", id] };
     },
     desktopSessions: () => desktopSessions(),
@@ -113,7 +113,7 @@ test("pin, icon and open commands; anything else is refused", async () => {
 
   ws.send(JSON.stringify({ type: "open", id: ID }));
   await waitFor(() => opened.length === 1);
-  expect(opened).toEqual([ID]);
+  expect(opened).toEqual([[ID, "/tmp/demo"]]); // where it last ran, for resuming it in a terminal
   expect(await next()).toEqual({ type: "focus", id: ID });
 
   ws.send(JSON.stringify({ type: "open", id: "11111111-1111-1111-1111-111111111111" }));

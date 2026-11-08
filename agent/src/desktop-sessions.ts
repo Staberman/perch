@@ -3,10 +3,16 @@
  * ~/Library/Application Support/Claude/claude-code-sessions/<account>/<org>/local_<id>.json.
  * They outlive the CLI process, which the app stops when a session sits idle.
  */
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { isSessionId } from "./protocol-guard.ts";
 
 export const DESKTOP_SESSIONS_DIR = `${homedir()}/Library/Application Support/Claude/claude-code-sessions`;
+
+/** Without its sessions dir there is no desktop app to open sessions in. */
+export function hasDesktopApp(dir = DESKTOP_SESSIONS_DIR) {
+  return existsSync(dir);
+}
 
 export interface DesktopSession {
   /** The app's id, used in claude:// links. */

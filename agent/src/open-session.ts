@@ -3,12 +3,13 @@
  * - Known to the app (running or stopped while idle): navigate with the undocumented
  *   `claude://code/continue?session=local_…`; the app restarts the session if needed.
  * - Unknown to the app and closed: `claude --desktop --resume <id>` (documented, CLI ≥ 2.1.285).
+ *   Without the desktop app: `claude --resume <id>` in a new Terminal.app tab, in the session's folder.
  * - Running in a terminal: brings the Terminal.app tab on its tty to the front. Without a tty it is
  *   refused, since resuming it would start a second process on the same conversation.
  */
 import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { DESKTOP_SESSIONS_DIR, findDesktopSession } from "./desktop-sessions.ts";
+import { DESKTOP_SESSIONS_DIR, findDesktopSession, hasDesktopApp } from "./desktop-sessions.ts";
 import { isSessionId } from "./protocol-guard.ts";
 
 const LOCAL_ID = /^local_[A-Za-z0-9-]{1,64}$/;
@@ -52,6 +53,28 @@ else
 	tell application "Terminal" to activate
 end if`;
 
+// Resumes a closed session the way NEW_TERMINAL_TAB opens a shell. The folder and id arrive as argv
+// and reach the shell through `quoted form of`, never through this source. A Terminal that isn't
+// running opens its own window at launch: the command runs there rather than in a second window.
+const RESUME_IN_TERMINAL = `on run argv
+	set command to "cd " & quoted form of (item 1 of argv) & " && claude --resume " & quoted form of (item 2 of argv)
+	if application "Terminal" is running then
+		tell application "Terminal"
+			do script command
+			activate
+		end tell
+	else
+		tell application "Terminal"
+			activate
+			repeat 50 times -- up to 5 s for the startup window
+				if (count of windows) > 0 then exit repeat
+				delay 0.1
+			end repeat
+			do script command in window 1
+		end tell
+	end if
+end run`;
+
 export type OpenResult = { ok: true; command: string[] } | { ok: false; error: string };
 
 interface LiveSession {
@@ -89,10 +112,10 @@ async function processTty(pid: number): Promise<string | undefined> {
   }
 }
 
-/** Picks the command that would open the session, without running it. */
+/** Picks the command that would open the session, without running it. `cwd` is where it last ran. */
 export async function planOpen(
   sessionId: string,
-  { liveDir = LIVE_DIR, desktopDir = DESKTOP_SESSIONS_DIR, ttyOf = processTty } = {},
+  { cwd = homedir(), liveDir = LIVE_DIR, desktopDir = DESKTOP_SESSIONS_DIR, ttyOf = processTty } = {},
 ): Promise<OpenResult> {
   if (!isSessionId(sessionId)) return { ok: false, error: "invalid session id" };
 
@@ -106,11 +129,12 @@ export async function planOpen(
     if (tty && TTY.test(tty)) return { ok: true, command: ["osascript", "-e", FOCUS_TERMINAL_TAB, `/dev/${tty}`] };
     return { ok: false, error: `running outside the desktop app (${live.entrypoint}, pid ${live.pid}): open it in its terminal` };
   }
-  return { ok: true, command: ["claude", "--desktop", "--resume", sessionId] };
+  if (hasDesktopApp(desktopDir)) return { ok: true, command: ["claude", "--desktop", "--resume", sessionId] };
+  return { ok: true, command: ["osascript", "-e", RESUME_IN_TERMINAL, cwd, sessionId] };
 }
 
-export async function openSession(sessionId: string): Promise<OpenResult> {
-  const plan = await planOpen(sessionId);
+export async function openSession(sessionId: string, cwd?: string): Promise<OpenResult> {
+  const plan = await planOpen(sessionId, { cwd });
   return plan.ok ? run(plan.command) : plan;
 }
 
