@@ -8,7 +8,8 @@ final class HoverLabel {
         var status: String
         var statusColor: NSColor
         var frameBeside: CGRect
-        var strip: CGRect
+        /// The label stays clear of this.
+        var outside: CGRect
         var edge: ScreenEdge
     }
 
@@ -57,7 +58,7 @@ final class HoverLabel {
         name.frame = NSRect(x: pad.width, y: status.frame.maxY + Self.lineGap, width: width, height: nameSize.height)
         let size = CGSize(width: width + 2 * pad.width, height: name.frame.maxY + pad.height)
 
-        panel.setFrame(StripLayout.labelFrame(size: size, beside: content.frameBeside, strip: content.strip, edge: content.edge), display: true)
+        panel.setFrame(StripLayout.labelFrame(size: size, beside: content.frameBeside, outside: content.outside, edge: content.edge), display: true)
         panel.orderFrontRegardless()
     }
 

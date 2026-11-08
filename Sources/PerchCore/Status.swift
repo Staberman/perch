@@ -43,6 +43,17 @@ extension PanelSession {
     }
 }
 
+/// What the strip holds, as the tab's status line.
+public func summary(of sessions: [PanelSession]) -> String {
+    let needy = sessions.filter(\.needsAttention).count
+    if needy > 0 { return "\(needy) need\(needy == 1 ? "s" : "") you" }
+    switch sessions.count {
+    case 0: return "no sessions"
+    case 1: return "1 session"
+    default: return "\(sessions.count) sessions"
+    }
+}
+
 public func ago(since: Date, now: Date) -> String {
     let s = max(0, Int(now.timeIntervalSince(since)))
     switch s {

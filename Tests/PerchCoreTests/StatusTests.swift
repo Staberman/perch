@@ -35,6 +35,14 @@ func statusTests() {
         expectEqual(needy, [.needsPermission, .needsInput])
     }
 
+    test("summarises the strip for its tab") {
+        expectEqual(summary(of: []), "no sessions")
+        expectEqual(summary(of: [session(state: .working)]), "1 session")
+        expectEqual(summary(of: [session(state: .working), session(state: .done)]), "2 sessions")
+        expectEqual(summary(of: [session(state: .needsInput), session(state: .working)]), "1 needs you")
+        expectEqual(summary(of: [session(state: .needsInput), session(state: .needsPermission)]), "2 need you")
+    }
+
     test("ago") {
         expectEqual(ago(since: now, now: now), "now")
         expectEqual(ago(since: now + 30, now: now), "now")
