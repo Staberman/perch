@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import type { ServerMessage } from "../../shared/protocol.ts";
 import type { DesktopSession } from "./desktop-sessions.ts";
 import { SessionHub } from "./hub.ts";
-import { planOpen } from "./open-session.ts";
+import { planOpen, type OpenResult } from "./open-session.ts";
 import { startServers } from "./server.ts";
 import { Store } from "./store.ts";
 
@@ -20,10 +20,12 @@ const DESKTOP: DesktopSession[] = [
 let servers: ReturnType<typeof startServers>;
 let opened: string[];
 let desktopSessions: () => Promise<DesktopSession[]>;
+let terminal: () => Promise<OpenResult>;
 
 beforeEach(() => {
   opened = [];
   desktopSessions = async () => DESKTOP;
+  terminal = async () => ({ ok: true, command: ["fake-terminal"] });
   servers = startServers({
     hub: new SessionHub(new Store()),
     token: TOKEN,
@@ -35,6 +37,7 @@ beforeEach(() => {
       return { ok: true, command: ["fake-open", id] };
     },
     desktopSessions: () => desktopSessions(),
+    terminal: () => terminal(),
   });
 });
 afterEach(() => servers.stop());
@@ -137,6 +140,24 @@ test("the library lists desktop sessions, and pinning one that isn't running ado
 
   ws.send(JSON.stringify({ type: "library" }));
   expect(await next()).toMatchObject({ type: "library", sessions: [{ id: IDLE, pinned: true }] });
+  ws.close();
+});
+
+test("terminal opens a new Terminal tab; a failure comes back as an error", async () => {
+  let opens = 0;
+  terminal = async () => {
+    opens++;
+    return { ok: true, command: ["fake-terminal"] };
+  };
+  const { ws, next } = await connect();
+  await next(); // snapshot
+
+  ws.send(JSON.stringify({ type: "terminal" }));
+  await waitFor(() => opens === 1);
+
+  terminal = async () => ({ ok: false, error: "osascript exited with 1: not allowed" });
+  ws.send(JSON.stringify({ type: "terminal" }));
+  expect(await next()).toEqual({ type: "error", message: "osascript exited with 1: not allowed" });
   ws.close();
 });
 

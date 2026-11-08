@@ -30,6 +30,7 @@ export function parseClientMessage(raw: string): ClientMessage | null {
   }
   if (typeof msg !== "object" || msg === null) return null;
   if (msg.type === "library") return { type: "library" };
+  if (msg.type === "terminal") return { type: "terminal" };
   if (!isSessionId(msg.id)) return null;
 
   switch (msg.type) {

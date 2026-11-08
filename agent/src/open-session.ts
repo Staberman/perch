@@ -40,6 +40,18 @@ const FOCUS_TERMINAL_TAB = `on run argv
 	error "no Terminal tab on " & target
 end run`;
 
+// Terminal's dictionary has no "new tab": `do script ""` opens a shell in a new window, which macOS
+// files as a tab of the front window when "Prefer tabs when opening documents" is Always. A Terminal
+// that isn't running opens its own window at launch, so then it is only activated.
+const NEW_TERMINAL_TAB = `if application "Terminal" is running then
+	tell application "Terminal"
+		do script ""
+		activate
+	end tell
+else
+	tell application "Terminal" to activate
+end if`;
+
 export type OpenResult = { ok: true; command: string[] } | { ok: false; error: string };
 
 interface LiveSession {
@@ -99,13 +111,20 @@ export async function planOpen(
 
 export async function openSession(sessionId: string): Promise<OpenResult> {
   const plan = await planOpen(sessionId);
-  if (!plan.ok) return plan;
+  return plan.ok ? run(plan.command) : plan;
+}
 
-  const proc = Bun.spawn(plan.command, { stdout: "ignore", stderr: "pipe" });
+/** Opens a shell, without Claude, in a new Terminal.app tab (a window unless macOS prefers tabs). */
+export function openTerminalTab(): Promise<OpenResult> {
+  return run(["osascript", "-e", NEW_TERMINAL_TAB]);
+}
+
+async function run(command: string[]): Promise<OpenResult> {
+  const proc = Bun.spawn(command, { stdout: "ignore", stderr: "pipe" });
   const code = await proc.exited;
   if (code !== 0) {
     const stderr = (await new Response(proc.stderr).text()).trim().slice(0, 200);
-    return { ok: false, error: `${plan.command[0]} exited with ${code}${stderr ? `: ${stderr}` : ""}` };
+    return { ok: false, error: `${command[0]} exited with ${code}${stderr ? `: ${stderr}` : ""}` };
   }
-  return plan;
+  return { ok: true, command };
 }

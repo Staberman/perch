@@ -8,7 +8,7 @@ import { basename } from "node:path";
 import type { LibraryEntry, ServerMessage } from "../../shared/protocol.ts";
 import { listDesktopSessions, type DesktopSession } from "./desktop-sessions.ts";
 import type { SessionHub } from "./hub.ts";
-import { openSession, type OpenResult } from "./open-session.ts";
+import { openSession, openTerminalTab, type OpenResult } from "./open-session.ts";
 import { parseClientMessage } from "./protocol-guard.ts";
 import type { HookEvent } from "./state.ts";
 
@@ -18,8 +18,9 @@ export interface ServerOptions {
   hookPort: number;
   panelPort: number;
   panelHost?: string;
-  /** Replaceable so tests don't open real sessions or read the real desktop app. */
+  /** Replaceable so tests don't open real sessions or tabs, or read the real desktop app. */
   open?: (id: string) => Promise<OpenResult>;
+  terminal?: () => Promise<OpenResult>;
   desktopSessions?: () => Promise<DesktopSession[]>;
 }
 
@@ -33,6 +34,7 @@ export function startServers({
   panelPort,
   panelHost = "127.0.0.1",
   open = openSession,
+  terminal = openTerminalTab,
   desktopSessions = () => listDesktopSessions(),
 }: ServerOptions) {
   async function library(): Promise<LibraryEntry[]> {
@@ -93,6 +95,11 @@ export function startServers({
           const msg = parseClientMessage(String(raw));
           if (!msg) return send(ws, { type: "error", message: "invalid message" });
           if (msg.type === "library") return send(ws, { type: "library", sessions: await library() });
+          if (msg.type === "terminal") {
+            const result = await terminal();
+            if (!result.ok) send(ws, { type: "error", message: result.error });
+            return;
+          }
           if (!hub.has(msg.id) && msg.type !== "open") await adoptFromDesktop(msg.id);
           if (!hub.has(msg.id)) return send(ws, { type: "error", message: "unknown session" });
 
