@@ -37,10 +37,12 @@ export function startServers({
   terminal = openTerminalTab,
   desktopSessions = () => listDesktopSessions(),
 }: ServerOptions) {
+  /** Desktop sessions plus the live ones the agent sees, e.g. in a terminal; a desktop entry wins a duplicate. */
   async function library(): Promise<LibraryEntry[]> {
-    return (await desktopSessions())
+    const desktop = await desktopSessions();
+    const inDesktop = new Set(desktop.map((s) => s.sessionId));
+    const entries: LibraryEntry[] = desktop
       .filter((s) => !s.archived)
-      .slice(0, LIBRARY_SIZE)
       .map((s) => ({
         id: s.sessionId,
         name: s.title ?? hub.get(s.sessionId)?.name ?? basename(s.cwd),
@@ -48,6 +50,8 @@ export function startServers({
         lastActivityAt: s.lastActivityAt,
         pinned: hub.get(s.sessionId)?.pinned ?? false,
       }));
+    for (const entry of hub.liveEntries()) if (!inDesktop.has(entry.id)) entries.push(entry);
+    return entries.sort((a, b) => b.lastActivityAt - a.lastActivityAt).slice(0, LIBRARY_SIZE);
   }
 
   /** Lets the panel pin a desktop session whose process isn't running, so the agent never saw it. */

@@ -3,7 +3,7 @@
  * about changes the panel can see, so a burst of identical hook events yields one message.
  */
 import { basename } from "node:path";
-import { DEFAULT_ICON, type PanelSession, type SessionIcon } from "../../shared/protocol.ts";
+import { DEFAULT_ICON, type LibraryEntry, type PanelSession, type SessionIcon } from "../../shared/protocol.ts";
 import { applyHookEvent, reconcile, type AgentEntry, type HookEvent, type SessionRecord } from "./state.ts";
 import type { Pin, Store } from "./store.ts";
 
@@ -48,6 +48,19 @@ export class SessionHub {
   /** All known sessions; the panel decides which to show. */
   snapshot(): PanelSession[] {
     return [...this.records.values()].map((rec) => this.toPanel(rec));
+  }
+
+  /** Running sessions as library entries, so the + can pin one that the strip hides. */
+  liveEntries(): LibraryEntry[] {
+    return [...this.records.values()]
+      .filter((rec) => rec.live)
+      .map((rec) => ({
+        id: rec.id,
+        name: rec.name ?? basename(rec.cwd),
+        cwd: rec.cwd,
+        lastActivityAt: rec.lastEventAt > 0 ? rec.lastEventAt : rec.stateSince, // 0: only the poll has seen it
+        pinned: this.pins.has(rec.id),
+      }));
   }
 
   handleHook(event: HookEvent) {

@@ -33,7 +33,7 @@ You need the Claude desktop app (sessions in its Code tab), the Claude Code CLI 
 
 ## Features
 
-- **The sessions you choose**: the **+** at the end of the strip lists every session in the Claude desktop app, recent or old, running or stopped; pick one to pin it. Its last item, **New Terminal tab**, opens a plain shell in Terminal.app, without Claude: a tab of the front window when macOS is set to prefer tabs, a new window otherwise. Sessions you haven't pinned show up only while they work or wait for you, and for five minutes after they finish, so a fresh install starts with just the +.
+- **The sessions you choose**: the **+** at the end of the strip lists every session in the Claude desktop app, recent or old, running or stopped, plus the running sessions Perch sees in your terminals; pick one to pin it. Its last item, **New Terminal tab**, opens a plain shell in Terminal.app, without Claude: a tab of the front window when macOS is set to prefer tabs, a new window otherwise. Sessions you haven't pinned show up only while they work or wait for you, and for five minutes after they finish, so a fresh install starts with just the +.
 - **One creature per session**, animated by its state: working, needs permission, asking you, compacting, done, error or closed. Finished sessions fall asleep after five minutes.
 - **Hard to miss when it needs you**: a permission request blinks the creature's tile in orange; a question rings it in orange. A working creature hops with typing dots over its head, and one that finished its turn holds up a green check, ringed in green, until you reply or it falls asleep.
 - **Hover** for the session's name and status, e.g. `Bash: npm test` or `done · 5m`.

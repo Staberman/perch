@@ -76,7 +76,7 @@ enum LibraryMenu {
         let menu = NSMenu()
         menu.addItem(.sectionHeader(title: "Pin a session"))
         if entries.isEmpty {
-            menu.addItem(withTitle: "No sessions in the Claude app", action: nil, keyEquivalent: "")
+            menu.addItem(withTitle: "No sessions", action: nil, keyEquivalent: "")
         }
         for entry in entries {
             let item = ActionItem(entry.name, checked: entry.pinned) { send(.pin(id: entry.id, pinned: !entry.pinned)) }
