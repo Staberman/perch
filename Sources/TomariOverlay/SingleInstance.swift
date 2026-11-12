@@ -2,7 +2,7 @@ import Foundation
 
 enum SingleInstance {
     private static let lockFile = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Application Support/perch/overlay.lock")
+        .appendingPathComponent("Library/Application Support/tomari/overlay.lock")
 
     /// The lock lasts as long as the process: the kernel drops it on exit, even after a crash.
     /// When the lock file can't be opened, running twice beats not running at all.

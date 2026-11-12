@@ -1,6 +1,6 @@
 import Foundation
 import Observation
-import PerchCore
+import TomariCore
 
 /// Reconnects forever; while disconnected, the last known sessions stay on screen.
 @MainActor @Observable

@@ -6,7 +6,7 @@ export type Command =
   | { name: "version" }
   | { name: "help"; error?: string };
 
-export const USAGE = `Usage: perch <command>
+export const USAGE = `Usage: tomari <command>
 
   setup [--pi]         install the agent, the strip and the Claude Code hooks, and start them
                        --pi also lets a claude-panel Raspberry Pi connect over the LAN

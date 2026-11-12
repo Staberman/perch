@@ -13,7 +13,7 @@ export async function writeHooks({ install }: { install: boolean }): Promise<boo
   const before = await readSettings();
   const after = mergeHooks(before, { install });
   if (JSON.stringify(after) === JSON.stringify(before)) return false;
-  if (exists) await copyFile(CLAUDE_SETTINGS, `${CLAUDE_SETTINGS}.bak-perch-${Date.now()}`);
+  if (exists) await copyFile(CLAUDE_SETTINGS, `${CLAUDE_SETTINGS}.bak-tomari-${Date.now()}`);
   await Bun.write(CLAUDE_SETTINGS, JSON.stringify(after, null, 2) + "\n");
   return true;
 }

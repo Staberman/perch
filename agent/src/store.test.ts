@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 function tempDb() {
-  const dir = mkdtempSync(`${tmpdir()}/perch-store-`);
+  const dir = mkdtempSync(`${tmpdir()}/tomari-store-`);
   dirs.push(dir);
   return `${dir}/panel.db`;
 }

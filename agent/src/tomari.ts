@@ -3,8 +3,8 @@ import { parseCommand, USAGE } from "./cli.ts";
 import { setup, uninstall } from "./install.ts";
 import { status } from "./status.ts";
 
-declare const PERCH_VERSION: string | undefined;
-const VERSION = typeof PERCH_VERSION === "string" ? PERCH_VERSION : "dev";
+declare const TOMARI_VERSION: string | undefined;
+const VERSION = typeof TOMARI_VERSION === "string" ? TOMARI_VERSION : "dev";
 
 const command = parseCommand(process.argv.slice(2));
 try {
@@ -25,11 +25,11 @@ try {
       console.log(VERSION);
       break;
     case "help":
-      if (command.error) console.error(`perch: ${command.error}\n`);
+      if (command.error) console.error(`tomari: ${command.error}\n`);
       console.log(USAGE);
       process.exit(command.error ? 1 : 0);
   }
 } catch (error) {
-  console.error(`perch: ${error instanceof Error ? error.message : String(error)}`);
+  console.error(`tomari: ${error instanceof Error ? error.message : String(error)}`);
   process.exit(1);
 }

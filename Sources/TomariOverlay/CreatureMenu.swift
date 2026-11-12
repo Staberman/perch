@@ -1,5 +1,5 @@
 import AppKit
-import PerchCore
+import TomariCore
 
 enum CreatureMenu {
     static func make(for session: PanelSession, send: @escaping (ClientMessage) -> Void) -> NSMenu {

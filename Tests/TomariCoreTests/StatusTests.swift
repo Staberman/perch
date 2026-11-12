@@ -1,5 +1,5 @@
 import Foundation
-import PerchCore
+import TomariCore
 
 func statusTests() {
     test("maps states to moods") {

@@ -6,29 +6,30 @@ import { dirname } from "node:path";
 export interface Job {
   label: string;
   program: string[];
-  /** "after-crash" leaves the job stopped when it exits cleanly, as after Quit Perch. */
+  /** "after-crash" leaves the job stopped when it exits cleanly, as after Quit Tomari. */
   keepAlive: "always" | "after-crash";
   log: string;
 }
 
 export const LEGACY_AGENT_LABEL = "com.claude-panel.agent";
+export const PERCH_LABELS = ["com.elrincondeldev.perch.agent", "com.elrincondeldev.perch.overlay"];
 
 const HOME = homedir();
 const DOMAIN = `gui/${process.getuid!()}`;
 // launchd starts processes with a bare PATH; the agent runs `claude`.
 const PATH = [`${HOME}/.local/bin`, `${HOME}/.bun/bin`, "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"].join(":");
 
-export function perchJobs({ binDir, logDir }: { binDir: string; logDir: string }, { lan }: { lan: boolean }): Job[] {
+export function tomariJobs({ binDir, logDir }: { binDir: string; logDir: string }, { lan }: { lan: boolean }): Job[] {
   return [
     {
-      label: "com.elrincondeldev.perch.agent",
-      program: [`${binDir}/perch`, "agent", ...(lan ? ["--lan"] : [])],
+      label: "com.elrincondeldev.tomari.agent",
+      program: [`${binDir}/tomari`, "agent", ...(lan ? ["--lan"] : [])],
       keepAlive: "always",
       log: `${logDir}/agent.log`,
     },
     {
-      label: "com.elrincondeldev.perch.overlay",
-      program: [`${binDir}/perch-overlay`],
+      label: "com.elrincondeldev.tomari.overlay",
+      program: [`${binDir}/tomari-overlay`],
       keepAlive: "after-crash",
       log: `${logDir}/overlay.log`,
     },

@@ -29,7 +29,7 @@ public struct CharacterTemplate: Decodable, Sendable {
               let data = try? Data(contentsOf: url),
               let characters = try? JSONDecoder().decode([CharacterTemplate].self, from: data),
               !characters.isEmpty
-        else { fatalError("characters.json is missing or malformed in the PerchCore bundle") }
+        else { fatalError("characters.json is missing or malformed in the TomariCore bundle") }
         return characters
     }()
 

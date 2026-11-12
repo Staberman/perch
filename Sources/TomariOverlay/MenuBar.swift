@@ -1,5 +1,5 @@
 import AppKit
-import PerchCore
+import TomariCore
 
 @MainActor
 final class MenuBar: NSObject, NSMenuDelegate {
@@ -13,7 +13,7 @@ final class MenuBar: NSObject, NSMenuDelegate {
         super.init()
         item.button?.image = Self.icon()
         item.button?.imagePosition = .imageLeading
-        item.button?.toolTip = "Perch"
+        item.button?.toolTip = "Tomari"
         let menu = NSMenu()
         menu.delegate = self
         item.menu = menu
@@ -43,7 +43,7 @@ final class MenuBar: NSObject, NSMenuDelegate {
         menu.addItem(edgeItem)
 
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Quit Perch", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: "Quit Tomari", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     }
 
     private var statusText: String {

@@ -1,9 +1,9 @@
 {
-  "name": "perch-agent",
+  "name": "tomari-agent",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/perch.ts agent",
+    "dev": "bun --watch src/tomari.ts agent",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
