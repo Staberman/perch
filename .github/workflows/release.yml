@@ -40,7 +40,7 @@ jobs:
         run: |
           (cd agent && bun install --frozen-lockfile)
           bun test agent npm
-          swift run PerchCoreTests
+          swift run TomariCoreTests
 
       - name: Build
         run: |
@@ -51,7 +51,7 @@ jobs:
         if: env.PUBLISH == 'true'
         run: |
           # The binaries first, so the launcher never points at versions that don't exist yet.
-          for package in perch-darwin-arm64 perch-darwin-x64 perch; do
+          for package in tomari-darwin-arm64 tomari-darwin-x64 tomari; do
             npm publish --access public "dist/npm/$package"
           done
 
@@ -60,7 +60,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for package in perch-darwin-arm64 perch-darwin-x64; do
+          for package in tomari-darwin-arm64 tomari-darwin-x64; do
             tar -czf "dist/$package.tar.gz" -C "dist/npm/$package" bin
           done
           gh release create "$GITHUB_REF_NAME" dist/*.tar.gz --generate-notes

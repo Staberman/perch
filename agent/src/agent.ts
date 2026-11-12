@@ -32,7 +32,7 @@ export async function runAgent({ lan }: { lan: boolean }) {
   });
 
   const urls = lan ? await panelUrls() : [`ws://127.0.0.1:${PANEL_PORT}/ws`];
-  console.log(`perch agent
+  console.log(`tomari agent
   hooks : http://127.0.0.1:${HOOK_PORT}/hook
   panel : ${urls.join("  ")}
   data  : ${config.dbPath}

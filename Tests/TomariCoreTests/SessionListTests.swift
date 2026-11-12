@@ -1,5 +1,5 @@
 import Foundation
-import PerchCore
+import TomariCore
 
 func sessionListTests() {
     test("a snapshot replaces everything") {

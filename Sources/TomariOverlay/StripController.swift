@@ -1,6 +1,6 @@
 import AppKit
 import Observation
-import PerchCore
+import TomariCore
 
 @MainActor
 final class StripController {
@@ -219,5 +219,5 @@ func track(_ apply: @escaping @MainActor () -> Void) {
 }
 
 enum Preferences {
-    static let store = UserDefaults(suiteName: "com.elrincondeldev.perch") ?? .standard
+    static let store = UserDefaults(suiteName: "com.elrincondeldev.tomari") ?? .standard
 }

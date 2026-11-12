@@ -1,16 +1,16 @@
 {
-  "name": "@elrincondeldev/perch",
+  "name": "tomari",
   "version": "0.0.0",
   "description": "Your Claude Code sessions as animated pixel-art creatures on the edge of your Mac's screen",
   "license": "MIT",
-  "homepage": "https://github.com/elrincondeldev/perch",
+  "homepage": "https://github.com/elrincondeldev/tomari",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/elrincondeldev/perch.git"
+    "url": "git+https://github.com/elrincondeldev/tomari.git"
   },
   "type": "module",
   "bin": {
-    "perch": "bin/perch.js"
+    "tomari": "bin/tomari.js"
   },
   "files": [
     "bin",
@@ -23,7 +23,7 @@
     "node": ">=18"
   },
   "optionalDependencies": {
-    "@elrincondeldev/perch-darwin-arm64": "0.0.0",
-    "@elrincondeldev/perch-darwin-x64": "0.0.0"
+    "@elrincondeldev/tomari-darwin-arm64": "0.0.0",
+    "@elrincondeldev/tomari-darwin-x64": "0.0.0"
   }
 }

@@ -17,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 guard SingleInstance.claim() else {
-    FileHandle.standardError.write(Data("perch-overlay is already running\n".utf8))
+    FileHandle.standardError.write(Data("tomari-overlay is already running\n".utf8))
     exit(0)
 }
 

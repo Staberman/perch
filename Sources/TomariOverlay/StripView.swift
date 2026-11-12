@@ -1,5 +1,5 @@
 import AppKit
-import PerchCore
+import TomariCore
 
 /// Changes only the layers whose appearance differs from the last frame, so an unchanged strip costs
 /// Core Animation nothing.
@@ -34,7 +34,7 @@ final class StripView: NSView {
         backdrop.cornerRadius = 10
         drawer.addSublayer(tab.root)
         layer!.addSublayer(drawer)
-        // Always active, because Perch is never the active app.
+        // Always active, because Tomari is never the active app.
         addTrackingArea(NSTrackingArea(
             rect: .zero,
             options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],

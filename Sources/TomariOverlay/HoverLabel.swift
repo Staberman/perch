@@ -1,5 +1,5 @@
 import AppKit
-import PerchCore
+import TomariCore
 
 @MainActor
 final class HoverLabel {

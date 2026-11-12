@@ -1,5 +1,5 @@
 import Foundation
-import PerchCore
+import TomariCore
 
 private let sessionJSON = """
 {"id":"34446bd8-0000-0000-0000-000000000001","name":"Node migration","cwd":"/src/app","state":"needs_permission",
@@ -106,8 +106,8 @@ func protocolTests() {
         expectEqual(AgentConfig.token(fromJSON: Data("garbage".utf8)), nil)
     }
 
-    test("reads the token from Perch's agent, where agent/src/config.ts writes it") {
-        expect(AgentConfig.configFile.path.hasSuffix("/Library/Application Support/perch/config.json"), AgentConfig.configFile.path)
+    test("reads the token from Tomari's agent, where agent/src/config.ts writes it") {
+        expect(AgentConfig.configFile.path.hasSuffix("/Library/Application Support/tomari/config.json"), AgentConfig.configFile.path)
     }
 
     test("builds the WebSocket URL with the token escaped") {
