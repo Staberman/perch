@@ -1,0 +1,111 @@
+---
+interface Props {
+  command: string;
+  /** "solid" for the hero's call to action, "quiet" inside the terminal. */
+  variant?: "solid" | "quiet";
+  hint?: string;
+}
+
+const { command, variant = "solid", hint = "copy" } = Astro.props;
+---
+
+<copy-command command={command} class:list={["copy", variant]}>
+  <button type="button" aria-label={`Copy ${command}`}>
+    {
+      variant === "solid" && (
+        <>
+          <span class="prompt" aria-hidden="true">$</span>
+          <code>{command}</code>
+        </>
+      )
+    }
+    <span class="hint" data-hint aria-live="polite">{hint}</span>
+  </button>
+</copy-command>
+
+<script>
+  import "../elements/copy-command.ts";
+</script>
+
+<style>
+  .copy {
+    display: inline-flex;
+  }
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    border: 0;
+    cursor: pointer;
+    transition:
+      transform 0.5s var(--ease-out),
+      box-shadow 0.5s var(--ease-out),
+      background 0.3s;
+  }
+
+  .solid button {
+    padding: 14px 14px 14px 24px;
+    border-radius: 999px;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    box-shadow: 0 18px 40px -18px rgba(38, 34, 43, 0.55);
+  }
+
+  .solid button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 26px 50px -20px rgba(38, 34, 43, 0.6);
+  }
+
+  .solid button:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  .prompt {
+    color: var(--sakura);
+  }
+
+  code {
+    font-size: inherit;
+  }
+
+  .hint {
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: rgba(247, 243, 235, 0.14);
+    font-family: var(--font-body);
+    font-size: 0.8rem;
+    letter-spacing: 0.04em;
+    transition:
+      background 0.3s,
+      color 0.3s;
+  }
+
+  .copy[copied] .hint {
+    background: var(--shu);
+    color: #fff;
+  }
+
+  .quiet button {
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: rgba(247, 243, 235, 0.1);
+    color: var(--paper);
+  }
+
+  .quiet button:hover {
+    background: rgba(247, 243, 235, 0.18);
+  }
+
+  .quiet .hint {
+    padding: 0;
+    background: none;
+  }
+
+  .quiet[copied] .hint {
+    background: none;
+    color: var(--sakura);
+  }
+</style>

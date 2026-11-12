@@ -1,0 +1,192 @@
+:root {
+  /* Washi paper, sumi ink, shu vermilion and the blossoms of a spring morning. */
+  --paper: #f7f3eb;
+  --paper-deep: #efe7d8;
+  --card: #fffdf8;
+  --ink: #26222b;
+  --ink-2: #5a5360;
+  --ink-3: #8c8490;
+  --hairline: rgba(38, 34, 43, 0.1);
+  --hairline-strong: rgba(38, 34, 43, 0.18);
+  --shu: #d4492c;
+  --shu-soft: #f6d9cf;
+  --sakura: #f2b9c6;
+  --sakura-soft: #fbe9ed;
+  --matcha: #7e9a62;
+  --ai: #2f4b7c;
+  --sky: #dde7ee;
+  --gold: #c39b52;
+
+  --font-display: "Shippori Mincho", "Hiragino Mincho ProN", "Yu Mincho", Georgia, serif;
+  --font-body: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", ui-rounded, system-ui, sans-serif;
+  --font-brush: "Yuji Syuku", "Shippori Mincho", serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --gutter: clamp(16px, 4.5vw, 56px);
+  --max: 1160px;
+  --radius: 22px;
+  --shadow-soft: 0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 24px 60px -32px rgba(84, 52, 30, 0.28);
+  --shadow-lift: 0 1px 0 rgba(255, 255, 255, 0.8) inset, 0 36px 80px -36px rgba(84, 52, 30, 0.38);
+
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 96px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 17px/1.75 var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+/* Washi grain over everything. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0.32;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.36 0 0 0 0 0.27 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+}
+
+h2 {
+  font-size: clamp(2rem, 4.2vw, 3.2rem);
+  line-height: 1.15;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: inherit;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+::selection {
+  background: var(--sakura);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--shu);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+.container {
+  width: 100%;
+  max-width: calc(var(--max) + 2 * var(--gutter));
+  margin: 0 auto;
+  padding-inline: var(--gutter);
+}
+
+.section {
+  position: relative;
+  padding-block: clamp(96px, 13vw, 168px);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.inline-code {
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--paper-deep);
+  color: var(--ink);
+}
+
+/* Things fade up as they scroll into view, once scripts are on to bring them back. */
+.js [data-reveal] {
+  opacity: 0;
+  transform: translateY(28px);
+  filter: blur(6px);
+  transition:
+    opacity 1.1s var(--ease-out),
+    transform 1.1s var(--ease-out),
+    filter 1.1s var(--ease-out);
+  transition-delay: calc(var(--stagger, 0) * 90ms);
+}
+
+.js [data-reveal].is-revealed {
+  opacity: 1;
+  transform: none;
+  filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+  }
+
+  .js [data-reveal] {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}

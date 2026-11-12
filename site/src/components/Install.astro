@@ -1,0 +1,237 @@
+---
+import { commands, installOutput, requirements } from "../data/install.ts";
+import { sections, site } from "../data/site.ts";
+import CopyCommand from "./CopyCommand.astro";
+import SectionHeader from "./SectionHeader.astro";
+---
+
+<section class="section" id="install">
+  <div class="container">
+    <SectionHeader {...sections.install}>
+      <Fragment slot="title">One command, and they <em>move in</em>.</Fragment>
+    </SectionHeader>
+
+    <div class="layout">
+      <type-terminal class="terminal" command={site.installCommand} data-reveal>
+        <div class="bar">
+          <span class="lights" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>~</span>
+        </div>
+        <pre><code data-screen><span class="prompt">$ </span>{site.installCommand}
+{installOutput.map((line) => <><span class={line.tone}>{line.text}</span>{"\n"}</>)}</code></pre>
+        <template data-output>
+          {installOutput.map((line) => <span class={line.tone}>{line.text}</span>)}
+        </template>
+        <div class="copy">
+          <CopyCommand command={site.installCommand} variant="quiet" hint="Copy command" />
+        </div>
+      </type-terminal>
+
+      <aside class="side" data-reveal>
+        <h3>What you need</h3>
+        <ul class="needs">
+          {requirements.map((r) => <li set:html={r} />)}
+        </ul>
+        <h3>Handy commands</h3>
+        <dl class="commands">
+          {
+            commands.map((c) => (
+              <div>
+                <dt><code>{c.command}</code></dt>
+                <dd>{c.does}</dd>
+              </div>
+            ))
+          }
+        </dl>
+        <p class="note">Setup backs up <code>~/.claude/settings.json</code> before it adds its hooks, and the strip comes back at every login.</p>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<script>
+  import "../elements/type-terminal.ts";
+</script>
+
+<style>
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  .terminal {
+    position: relative;
+    display: block;
+    border-radius: var(--radius);
+    background: #24212a;
+    color: #e9e3da;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 8px rgba(255, 253, 248, 0.7),
+      0 50px 100px -50px rgba(38, 34, 43, 0.65);
+  }
+
+  .bar {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 38px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    color: #8f8796;
+    font-size: 0.8rem;
+  }
+
+  .lights {
+    position: absolute;
+    left: 16px;
+    display: flex;
+    gap: 6px;
+  }
+
+  .lights i {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #ff5f57;
+  }
+
+  .lights i:nth-child(2) {
+    background: #febc2e;
+  }
+
+  .lights i:nth-child(3) {
+    background: #28c840;
+  }
+
+  pre {
+    margin: 0;
+    min-height: 260px;
+    padding: 24px 24px 80px;
+    overflow-x: auto;
+    font: 400 0.92rem/1.8 var(--font-mono);
+  }
+
+  pre :global(.prompt) {
+    color: var(--sakura);
+  }
+
+  pre :global(.ok) {
+    color: #9fd08a;
+  }
+
+  pre :global(.dim) {
+    color: #9a92a0;
+  }
+
+  pre :global(.caret) {
+    display: inline-block;
+    width: 9px;
+    height: 1.15em;
+    vertical-align: -3px;
+    background: #e9e3da;
+    animation: caret 1s steps(2) infinite;
+  }
+
+  @keyframes caret {
+    50% {
+      opacity: 0;
+    }
+  }
+
+  .copy {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+  }
+
+  .side {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 30px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--card);
+    box-shadow: var(--shadow-soft);
+  }
+
+  h3 {
+    font-size: 1.1rem;
+  }
+
+  h3:not(:first-child) {
+    margin-top: 10px;
+  }
+
+  .needs {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--ink-2);
+    font-size: 0.96rem;
+  }
+
+  .needs li {
+    display: flex;
+    gap: 12px;
+  }
+
+  .needs li::before {
+    content: "";
+    flex: none;
+    width: 7px;
+    height: 7px;
+    margin-top: 10px;
+    border-radius: 50%;
+    background: var(--matcha);
+    box-shadow: 0 0 0 4px rgba(126, 154, 98, 0.18);
+  }
+
+  .commands {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+  }
+
+  dd {
+    margin: 2px 0 0;
+    color: var(--ink-2);
+    font-size: 0.93rem;
+  }
+
+  code {
+    padding: 2px 8px;
+    border-radius: 7px;
+    background: rgba(38, 34, 43, 0.06);
+  }
+
+  pre code {
+    padding: 0;
+    background: none;
+  }
+
+  .note {
+    color: var(--ink-3);
+    font-size: 0.88rem;
+  }
+
+  @media (max-width: 1060px) {
+    .layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (max-width: 560px) {
+    pre {
+      font-size: 0.78rem;
+      padding: 18px 16px 76px;
+    }
+
+    .side {
+      padding: 24px 20px;
+    }
+  }
+</style>

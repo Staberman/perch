@@ -1,0 +1,177 @@
+---
+import { perch, site } from "../data/site.ts";
+import Creature from "./Creature.astro";
+import GitHubStars from "./GitHubStars.astro";
+import Hanko from "./Hanko.astro";
+
+const walkers = [
+  { character: "default", color: "#d97757" },
+  { character: "robot", color: "#3ccfe6" },
+  { character: "ghost", color: "#a66cff" },
+  { character: "cat", color: "#ff5fa2" },
+  { character: "default", color: "#4cd964" },
+  { character: "robot", color: "#ffd23f" },
+];
+
+const links = [
+  { href: site.links.repo, label: "GitHub" },
+  { href: site.links.npm, label: "npm" },
+  { href: site.links.license, label: "MIT license" },
+  { href: site.links.claudePanel, label: "claude-panel" },
+];
+---
+
+<footer class="footer">
+  <div class="parade" aria-hidden="true">
+    {
+      walkers.map((w, i) => (
+        <span class="walker" style={`--delay: ${-i * 5.5}s; --duration: ${30 + (i % 3) * 4}s`}>
+          <Creature {...w} state="working" bare unit="2.25px" outline="#4a3a36" offset={i} label="" />
+        </span>
+      ))
+    }
+  </div>
+  <div class="ground" aria-hidden="true"></div>
+
+  <div class="container inner">
+    <div class="mark">
+      <p class="wordmark">tomari</p>
+      <span class="vertical" lang="ja" aria-hidden="true">{perch.kanji}</span>
+      <Hanko size="46px" class="seal" />
+    </div>
+    <nav aria-label="Project">
+      {
+        links.map((link) => (
+          <a href={link.href}>
+            {link.label}
+            {link.href === site.links.repo && <GitHubStars />}
+          </a>
+        ))
+      }
+    </nav>
+    <p class="disclaimer">{site.disclaimer}</p>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    position: relative;
+    margin-top: 40px;
+    background: var(--paper-deep);
+  }
+
+  .parade {
+    position: relative;
+    height: 64px;
+    margin-top: -64px;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .walker {
+    position: absolute;
+    bottom: -3px;
+    left: 0;
+    animation: walk var(--duration) linear var(--delay) infinite;
+  }
+
+  @keyframes walk {
+    from {
+      translate: -80px 0;
+    }
+    to {
+      translate: calc(100vw + 20px) 0;
+    }
+  }
+
+  .ground {
+    height: 14px;
+    /* Seigaiha waves along the ground the creatures walk on. */
+    background:
+      radial-gradient(circle at 50% 100%, transparent 40%, rgba(47, 75, 124, 0.14) 41% 46%, transparent 47%) 0 0 / 28px 14px,
+      var(--paper-deep);
+    border-top: 1px solid var(--hairline-strong);
+  }
+
+  .inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    padding-block: 64px 56px;
+    text-align: center;
+  }
+
+  .mark {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+
+  .wordmark {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: clamp(4rem, 12vw, 8.5rem);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--ink);
+  }
+
+  .vertical {
+    writing-mode: vertical-rl;
+    font-family: var(--font-brush);
+    font-size: clamp(1.1rem, 2.4vw, 1.7rem);
+    letter-spacing: 0.2em;
+    color: var(--ink-2);
+  }
+
+  .mark :global(.seal) {
+    position: absolute;
+    top: -6px;
+    right: -46px;
+    animation: none;
+  }
+
+  nav {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 26px;
+  }
+
+  nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink-2);
+    text-decoration: none;
+    background: linear-gradient(var(--shu), var(--shu)) 0 100% / 0 1px no-repeat;
+    transition:
+      background-size 0.5s var(--ease-out),
+      color 0.3s;
+  }
+
+  nav a:hover {
+    color: var(--ink);
+    background-size: 100% 1px;
+  }
+
+  .disclaimer {
+    max-width: 560px;
+    color: var(--ink-3);
+    font-size: 0.82rem;
+  }
+
+  @media (max-width: 560px) {
+    .mark :global(.seal) {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .parade {
+      display: none;
+    }
+  }
+</style>

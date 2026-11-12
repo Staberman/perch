@@ -1,0 +1,82 @@
+---
+/** A section's number and Japanese name over its title, with an optional lede in the default slot. */
+interface Props {
+  numeral: string;
+  kanji: string;
+  label: string;
+  align?: "center" | "start";
+}
+
+const { numeral, kanji, label, align = "center" } = Astro.props;
+---
+
+<header class:list={["head", align]} data-reveal>
+  <p class="eyebrow">
+    <span class="numeral" aria-hidden="true">{numeral}</span>
+    <span class="rule" aria-hidden="true"></span>
+    <span>{label}</span>
+    <span class="kanji" lang="ja">{kanji}</span>
+  </p>
+  <h2><slot name="title" /></h2>
+  {Astro.slots.has("default") && <p class="lede"><slot /></p>}
+</header>
+
+<style>
+  .head {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    max-width: 760px;
+    margin-bottom: clamp(44px, 6vw, 72px);
+  }
+
+  .center {
+    align-items: center;
+    margin-inline: auto;
+    text-align: center;
+  }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    color: var(--ink-3);
+    font-size: 0.82rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .numeral,
+  .kanji {
+    font-family: var(--font-brush);
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  .numeral {
+    color: var(--shu);
+    font-size: 1.5rem;
+    line-height: 1;
+  }
+
+  .kanji {
+    color: var(--ink-2);
+    font-size: 1.05rem;
+  }
+
+  .rule {
+    width: 28px;
+    height: 1px;
+    background: var(--hairline-strong);
+  }
+
+  .lede {
+    color: var(--ink-2);
+    font-size: 1.1rem;
+  }
+
+  h2 :global(em) {
+    font-style: normal;
+    color: var(--shu);
+  }
+</style>

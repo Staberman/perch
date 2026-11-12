@@ -1,0 +1,116 @@
+---
+import { features } from "../data/features.ts";
+import { sections } from "../data/site.ts";
+import Creature from "./Creature.astro";
+import SectionHeader from "./SectionHeader.astro";
+---
+
+<section class="section features" id="features">
+  <div class="container">
+    <SectionHeader {...sections.features}>
+      <Fragment slot="title">Made to sit quietly on your screen <em>all day</em>.</Fragment>
+    </SectionHeader>
+
+    <ul class="grid">
+      {
+        features.map((f, i) => (
+          <li data-reveal>
+            <article class="card">
+              <Creature {...f.creature} bare unit="2.25px" outline="#4a3a36" offset={i * 3} label="" class="icon" />
+              <h3>{f.title}</h3>
+              <p set:html={f.text} />
+            </article>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>
+
+<style>
+  .features {
+    background: linear-gradient(180deg, var(--paper), var(--paper-deep) 50%, var(--paper));
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-top: 1px solid var(--hairline-strong);
+  }
+
+  .grid > li {
+    display: flex;
+    border-bottom: 1px solid var(--hairline-strong);
+  }
+
+  .grid > li:not(:nth-child(3n + 1)) {
+    border-left: 1px solid var(--hairline-strong);
+  }
+
+  .card {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 34px 30px 38px;
+    transition: background 0.6s var(--ease-out);
+  }
+
+  .card:hover {
+    background: rgba(255, 253, 248, 0.7);
+  }
+
+  .card :global(.icon) {
+    margin: -6px 0 6px -10px;
+    transition: translate 0.6s var(--ease-out);
+  }
+
+  .card:hover :global(.icon) {
+    translate: 0 -4px;
+  }
+
+  h3 {
+    font-size: 1.22rem;
+  }
+
+  p {
+    color: var(--ink-2);
+    font-size: 0.97rem;
+  }
+
+  p :global(code) {
+    padding: 1px 7px;
+    border-radius: 6px;
+    background: rgba(38, 34, 43, 0.06);
+    color: var(--ink);
+    white-space: nowrap;
+  }
+
+  @media (max-width: 1060px) {
+    .grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .grid > li:not(:nth-child(3n + 1)) {
+      border-left: 0;
+    }
+
+    .grid > li:nth-child(even) {
+      border-left: 1px solid var(--hairline-strong);
+    }
+  }
+
+  @media (max-width: 640px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .grid > li:nth-child(even) {
+      border-left: 0;
+    }
+
+    .card {
+      padding: 28px 4px 30px;
+    }
+  }
+</style>

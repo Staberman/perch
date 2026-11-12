@@ -1,0 +1,22 @@
+{
+  "name": "tomari-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro check && astro build",
+    "preview": "astro preview",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "astro": "^7.4.11"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@types/bun": "^1.4.4",
+    "typescript": "^6"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}

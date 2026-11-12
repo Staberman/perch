@@ -1,0 +1,130 @@
+---
+import { sections, site } from "../data/site.ts";
+import Creature from "./Creature.astro";
+import GitHubIcon from "./GitHubIcon.astro";
+import GitHubStars from "./GitHubStars.astro";
+
+const links = [
+  { href: "#moods", ...sections.moods },
+  { href: "#yours", ...sections.yours },
+  { href: "#how", ...sections.how },
+  { href: "#install", ...sections.install },
+];
+---
+
+<header class="header" data-header>
+  <a class="brand" href="#top" aria-label="Tomari, back to the top">
+    <Creature character="default" color="#d97757" state="idle" bare unit="1.5px" label="" />
+    <span class="wordmark">tomari</span>
+  </a>
+  <nav class="links" aria-label="Sections">
+    {links.map((link) => <a href={link.href}>{link.label}</a>)}
+  </nav>
+  <a class="repo" href={site.links.repo}>
+    <GitHubIcon />
+    <span>GitHub</span>
+    <GitHubStars />
+  </a>
+</header>
+
+<script>
+  const header = document.querySelector<HTMLElement>("[data-header]");
+  const update = () => header?.classList.toggle("is-scrolled", scrollY > 24);
+  addEventListener("scroll", update, { passive: true });
+  update();
+</script>
+
+<style>
+  .header {
+    position: fixed;
+    inset: 14px var(--gutter) auto;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    max-width: var(--max);
+    margin: 0 auto;
+    padding: 8px 10px 8px 14px;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    transition:
+      background 0.5s var(--ease-out),
+      border-color 0.5s var(--ease-out),
+      box-shadow 0.5s var(--ease-out);
+  }
+
+  .header.is-scrolled {
+    background: rgba(255, 253, 248, 0.72);
+    border-color: var(--hairline);
+    box-shadow: 0 16px 40px -28px rgba(84, 52, 30, 0.35);
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+  }
+
+  .wordmark {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.3rem;
+    letter-spacing: 0.02em;
+  }
+
+  .links {
+    display: flex;
+    gap: 2px;
+    margin-left: auto;
+  }
+
+  .links a,
+  .repo {
+    padding: 6px 14px;
+    border-radius: 999px;
+    color: var(--ink-2);
+    font-size: 0.93rem;
+    text-decoration: none;
+    transition:
+      color 0.3s,
+      background 0.3s;
+  }
+
+  .links a:hover,
+  .repo:hover {
+    color: var(--ink);
+    background: rgba(38, 34, 43, 0.05);
+  }
+
+  .repo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--paper);
+    background: var(--ink);
+  }
+
+  .repo:hover {
+    color: var(--paper);
+    background: #3a3540;
+  }
+
+  .repo :global(.stars) {
+    margin-left: 2px;
+    padding-left: 10px;
+    border-left: 1px solid rgba(247, 243, 235, 0.22);
+  }
+
+  @media (max-width: 760px) {
+    .links {
+      display: none;
+    }
+
+    .repo {
+      margin-left: auto;
+    }
+  }
+</style>

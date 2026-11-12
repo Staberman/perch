@@ -95,6 +95,17 @@ The Command Line Tools for Xcode 15 ship without XCTest, so the Swift tests are 
 
 Pushing a `v*` tag runs `.github/workflows/release.yml`: it tests, builds for Apple Silicon and Intel, publishes the three npm packages through npm's Trusted Publishing, with no token, and attaches the binaries to a GitHub release. Pull requests that touch what ships run the same build without publishing.
 
+The landing page is an Astro site in `site/`. It draws the creatures from the same `characters.json`, through a TypeScript port of the overlay's sprite renderer in `site/src/domain`.
+
+```bash
+cd site && bun install
+bun run dev                    # http://localhost:4321
+bun test                       # the sprite port and the page's other pure logic
+bun run build                  # type-checks, then builds into site/dist
+```
+
+On Vercel, import the repository and set its Root Directory to `site`; Vercel detects Astro and builds it with Bun.
+
 ## Privacy
 
 - Everything stays on your Mac: the overlay only talks to the agent on 127.0.0.1, and the agent only listens there unless you choose `--pi`. No telemetry.
