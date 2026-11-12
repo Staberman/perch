@@ -1,0 +1,148 @@
+---
+import { states } from "../domain/appearance.ts";
+import { moodCards } from "../data/moods.ts";
+import { sections } from "../data/site.ts";
+import Creature from "./Creature.astro";
+import SectionHeader from "./SectionHeader.astro";
+---
+
+<section class="section" id="moods">
+  <div class="container">
+    <SectionHeader {...sections.moods}>
+      <Fragment slot="title">Know what every session is doing, <em>at a glance</em>.</Fragment>
+      Each creature acts out its session's state, and the ones waiting on you light up their tile. A look at the edge of your screen tells you where you're needed.
+    </SectionHeader>
+
+    <ul class="grid">
+      {
+        moodCards.map((card, i) => (
+          <li data-reveal>
+            <article class="card">
+            <span class="kanji" lang="ja">{card.kanji}</span>
+            <span class="stage">
+              <Creature character={card.character} color={card.color} state={card.state} offset={i * 2} unit="var(--card-u)" />
+            </span>
+            <h3>{states[card.state].label}</h3>
+            <p>{card.text}</p>
+            </article>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</section>
+
+<style>
+  .grid {
+    --card-u: 3.25px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .grid > li {
+    display: flex;
+  }
+
+  .card {
+    flex: 1;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 34px 22px 26px;
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    background: var(--card);
+    box-shadow: var(--shadow-soft);
+    text-align: center;
+    transition:
+      translate 0.7s var(--ease-out),
+      box-shadow 0.7s var(--ease-out);
+  }
+
+  .card:hover {
+    translate: 0 -6px;
+    box-shadow: var(--shadow-lift);
+  }
+
+  .stage {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 132px;
+    aspect-ratio: 1;
+    margin-bottom: 6px;
+    border-radius: 50%;
+    background:
+      radial-gradient(circle, #2b2730 0 58%, transparent 59%),
+      conic-gradient(from 200deg, var(--sakura), var(--shu-soft), #dfe7ee, var(--sakura));
+    box-shadow: inset 0 0 0 6px var(--card);
+    transition: rotate 1.2s var(--ease-out);
+  }
+
+  .card:hover .stage {
+    rotate: 6deg;
+  }
+
+  .card:hover .stage :global(.creature) {
+    rotate: -6deg;
+  }
+
+  .kanji {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    writing-mode: vertical-rl;
+    font-family: var(--font-brush);
+    font-size: 1.05rem;
+    color: var(--shu);
+    opacity: 0.75;
+  }
+
+  h3 {
+    font-size: 1.3rem;
+  }
+
+  p {
+    color: var(--ink-2);
+    font-size: 0.94rem;
+    line-height: 1.6;
+  }
+
+  @media (max-width: 1060px) {
+    .grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 560px) {
+    .kanji {
+      top: 12px;
+      right: 10px;
+      font-size: 0.8rem;
+    }
+
+    .grid {
+      --card-u: 2.25px;
+      gap: 12px;
+    }
+
+    .card {
+      padding: 26px 14px 20px;
+    }
+
+    .stage {
+      width: 92px;
+    }
+
+    h3 {
+      font-size: 1.1rem;
+    }
+
+    p {
+      font-size: 0.86rem;
+    }
+  }
+</style>

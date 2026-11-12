@@ -1,0 +1,26 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import Customizer from "../components/Customizer.astro";
+import Features from "../components/Features.astro";
+import Hero from "../components/Hero.astro";
+import HowItWorks from "../components/HowItWorks.astro";
+import Install from "../components/Install.astro";
+import Moods from "../components/Moods.astro";
+import Perch from "../components/Perch.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import SiteHeader from "../components/SiteHeader.astro";
+---
+
+<BaseLayout>
+  <SiteHeader />
+  <main>
+    <Hero />
+    <Moods />
+    <Perch />
+    <Customizer />
+    <Features />
+    <HowItWorks />
+    <Install />
+  </main>
+  <SiteFooter />
+</BaseLayout>

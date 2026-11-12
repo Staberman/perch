@@ -1,0 +1,237 @@
+---
+import { states, statusLine, type SessionState } from "../domain/appearance.ts";
+import { characters, defaultIcon, palette } from "../domain/characters.ts";
+import { sections } from "../data/site.ts";
+import Creature from "./Creature.astro";
+import SectionHeader from "./SectionHeader.astro";
+
+const moods: SessionState[] = ["working", "needsPermission", "needsInput", "compacting", "done", "sleeping", "error", "closed"];
+const initial = { character: defaultIcon.character, color: defaultIcon.color, state: "working" as SessionState };
+---
+
+<section class="section yours" id="yours">
+  <tomari-customizer class="container layout" style={`--chosen: ${initial.color}`}>
+    <div class="stage" data-reveal>
+      <span class="glow" aria-hidden="true"></span>
+      <span class="window">
+        <Creature data-stage character={initial.character} color={initial.color} state={initial.state} unit="clamp(5px, 0.8vw, 8.5px)" label="Your creature" />
+      </span>
+      <p class="status" data-status aria-live="polite">{statusLine({ state: initial.state, activity: "Bash: npm run build" })}</p>
+    </div>
+
+    <div class="controls">
+      <SectionHeader {...sections.yours} align="start">
+        <Fragment slot="title">Pick a creature for <em>each</em> session.</Fragment>
+        Right-click any creature on the strip to choose its character and color. They're plain 16×16 text templates, so you can draw your own too.
+      </SectionHeader>
+
+      <fieldset data-reveal>
+        <legend>Character</legend>
+        <div class="options">
+          {
+            characters.map((c) => (
+              <button type="button" class="chip" data-choice="character" data-value={c.id} aria-pressed={c.id === initial.character ? "true" : "false"}>
+                <Creature character={c.id} color="#8c8490" state="idle" bare unit="1.25px" label="" />
+                {c.label}
+              </button>
+            ))
+          }
+        </div>
+      </fieldset>
+
+      <fieldset data-reveal>
+        <legend>Color</legend>
+        <div class="options">
+          {
+            palette.map((p) => (
+              <button type="button" class="swatch" data-choice="color" data-value={p.color} aria-pressed={p.color === initial.color ? "true" : "false"} aria-label={p.name} title={p.name} style={`--swatch: ${p.color}`} />
+            ))
+          }
+        </div>
+      </fieldset>
+
+      <fieldset data-reveal>
+        <legend>Mood</legend>
+        <div class="options">
+          {
+            moods.map((state) => (
+              <button type="button" class="chip text" data-choice="state" data-value={state} aria-pressed={state === initial.state ? "true" : "false"}>
+                {states[state].label}
+              </button>
+            ))
+          }
+        </div>
+      </fieldset>
+    </div>
+  </tomari-customizer>
+</section>
+
+<script>
+  import "../elements/tomari-customizer.ts";
+</script>
+
+<style>
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: clamp(40px, 7vw, 96px);
+  }
+
+  .stage {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 1;
+    border-radius: 36px;
+    border: 1px solid var(--hairline);
+    overflow: hidden;
+    background-color: #fbf7f0;
+    /* Seigaiha, the overlapping waves of a calm sea. */
+    background-image:
+      radial-gradient(circle at 100% 150%, transparent 24%, rgba(47, 75, 124, 0.08) 24% 26%, transparent 26% 34%, rgba(47, 75, 124, 0.08) 34% 36%, transparent 36%),
+      radial-gradient(circle at 0 150%, transparent 24%, rgba(47, 75, 124, 0.08) 24% 26%, transparent 26% 34%, rgba(47, 75, 124, 0.08) 34% 36%, transparent 36%),
+      radial-gradient(circle at 50% 100%, transparent 24%, rgba(47, 75, 124, 0.08) 24% 26%, transparent 26% 34%, rgba(47, 75, 124, 0.08) 34% 36%, transparent 36%);
+    background-size: 64px 32px;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .glow {
+    position: absolute;
+    width: 70%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: var(--chosen);
+    filter: blur(70px);
+    opacity: 0.28;
+    transition: background 0.8s var(--ease-out);
+  }
+
+  .window {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 66%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: #2b2730;
+    box-shadow:
+      0 0 0 10px rgba(255, 253, 248, 0.9),
+      0 40px 80px -30px rgba(43, 39, 48, 0.6);
+  }
+
+  .status {
+    position: absolute;
+    bottom: 22px;
+    left: 50%;
+    translate: -50% 0;
+    padding: 6px 14px;
+    border-radius: 10px;
+    background: rgba(13, 13, 13, 0.86);
+    color: #f2f2f2;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+
+  .controls {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+  }
+
+  .controls :global(.head) {
+    margin-bottom: 8px;
+  }
+
+  fieldset {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  legend {
+    margin-bottom: 12px;
+    color: var(--ink-3);
+    font-size: 0.78rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px 6px 8px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: 999px;
+    background: var(--card);
+    color: var(--ink-2);
+    font-size: 0.92rem;
+    cursor: pointer;
+    transition:
+      background 0.35s var(--ease-out),
+      color 0.35s,
+      border-color 0.35s,
+      translate 0.35s var(--ease-out);
+  }
+
+  .chip.text {
+    padding: 7px 15px;
+  }
+
+  .chip:hover {
+    translate: 0 -2px;
+    color: var(--ink);
+  }
+
+  .chip[aria-pressed="true"] {
+    border-color: var(--ink);
+    background: var(--ink);
+    color: var(--paper);
+  }
+
+  .swatch {
+    width: 36px;
+    height: 36px;
+    border: 0;
+    border-radius: 50%;
+    background: var(--swatch);
+    box-shadow:
+      inset 0 -4px 0 rgba(0, 0, 0, 0.12),
+      0 0 0 1px rgba(38, 34, 43, 0.1);
+    cursor: pointer;
+    transition:
+      translate 0.35s var(--ease-out),
+      box-shadow 0.35s var(--ease-out);
+  }
+
+  .swatch:hover {
+    translate: 0 -3px;
+  }
+
+  .swatch[aria-pressed="true"] {
+    box-shadow:
+      inset 0 -4px 0 rgba(0, 0, 0, 0.12),
+      0 0 0 3px var(--paper),
+      0 0 0 5px var(--ink);
+  }
+
+  @media (max-width: 1060px) {
+    .layout {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .stage {
+      width: 100%;
+      max-width: 480px;
+      margin-inline: auto;
+    }
+  }
+</style>

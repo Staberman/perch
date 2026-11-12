@@ -1,0 +1,37 @@
+---
+import { site } from "../data/site.ts";
+import { starsAtBuild } from "../data/stars.ts";
+import { formatStars } from "../lib/github.ts";
+
+/** The repository's GitHub stars, as of the build and refreshed in the browser; hidden until there's a count. */
+const stars = await starsAtBuild;
+---
+
+<github-stars repo={site.repo} class="stars" hidden={stars == null}>
+  <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+    <path fill="currentColor" d="M8 .8l2.2 4.6 5 .7-3.6 3.5.9 5L8 12.2l-4.5 2.4.9-5L.8 6.1l5-.7z"></path>
+  </svg>
+  <span data-count>{stars == null ? "" : formatStars(stars)}</span>
+  <span class="visually-hidden"> stars</span>
+</github-stars>
+
+<script>
+  import "../elements/github-stars.ts";
+</script>
+
+<style>
+  .stars {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stars[hidden] {
+    display: none;
+  }
+
+  svg {
+    color: var(--gold);
+  }
+</style>

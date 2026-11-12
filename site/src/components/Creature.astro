@@ -1,0 +1,86 @@
+---
+import type { HTMLAttributes } from "astro/types";
+import { creatureLook, states, type SessionState } from "../domain/appearance.ts";
+import { characterNamed } from "../domain/characters.ts";
+import { SPRITE_SIZE } from "../domain/sprite.ts";
+import { pixelRects } from "../lib/pixel-svg.ts";
+
+interface Props extends Omit<HTMLAttributes<"span">, "class" | "style" | "role"> {
+  character?: string;
+  color?: string;
+  state?: SessionState;
+  focused?: boolean;
+  /** Without the tile the strip draws behind each creature. */
+  bare?: boolean;
+  /** CSS length of one sprite pixel. */
+  unit?: string;
+  /** Rings the creature in this color, for creatures drawn straight on the light page. */
+  outline?: string;
+  /** Frames to shift its animation by, so neighbours don't move in lockstep. */
+  offset?: number;
+  label?: string;
+  class?: string;
+}
+
+const { character = "default", color = "#d97757", state = "idle", focused = false, bare = false, unit = "2px", outline, offset = 0, label, class: className, ...attributes } = Astro.props;
+const look = creatureLook({ character: characterNamed(character), color, state, frame: 1 + offset, focused, ...(outline && { outline }) });
+const style = [
+  `--u: ${unit}`,
+  `--tile-fill: ${look.tile.fill ?? "transparent"}`,
+  `--tile-border: ${look.tile.border ?? "transparent"}`,
+  `--tile-border-width: ${look.tile.borderWidth}`,
+].join("; ");
+// An empty label marks a decorative creature.
+const name = label ?? `${characterNamed(character).label}, ${states[state].label}`;
+---
+
+<tomari-creature
+  {...attributes}
+  class:list={["creature", { bare }, className]}
+  character={character}
+  color={color}
+  state={state}
+  focused={focused || undefined}
+  offset={offset || undefined}
+  outline={outline}
+  style={style}
+  role={name ? "img" : undefined}
+  aria-label={name || undefined}
+  aria-hidden={name ? undefined : "true"}
+>
+  <svg viewBox={`0 0 ${SPRITE_SIZE} ${SPRITE_SIZE}`} shape-rendering="crispEdges" aria-hidden="true" style={`opacity: ${look.opacity}`} set:html={pixelRects(look.pixels)} />
+</tomari-creature>
+
+<script>
+  import "../elements/tomari-creature.ts";
+</script>
+
+<style>
+  .creature {
+    --u: 2px;
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: calc(26 * var(--u));
+    height: calc(26 * var(--u));
+    border-radius: calc(3 * var(--u));
+    background: var(--tile-fill);
+    box-shadow: inset 0 0 0 calc(var(--tile-border-width) * var(--u)) var(--tile-border);
+    transition: transform 0.4s var(--ease-out);
+  }
+
+  .creature.bare {
+    width: calc(24 * var(--u));
+    height: calc(24 * var(--u));
+    background: none;
+    box-shadow: none;
+  }
+
+  .creature :global(svg),
+  .creature :global(canvas) {
+    display: block;
+    width: calc(24 * var(--u));
+    height: calc(24 * var(--u));
+    image-rendering: pixelated;
+  }
+</style>

@@ -1,0 +1,55 @@
+---
+/** A vermilion seal with Tomari's name, pressed onto the page after the headline settles. */
+interface Props {
+  size?: string;
+  class?: string;
+}
+
+const { size = "40px", class: className } = Astro.props;
+---
+
+<span class:list={["hanko", className]} style={`--size: ${size}`} aria-hidden="true"><span>とまり</span></span>
+
+<style>
+  .hanko {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: var(--size);
+    height: var(--size);
+    border-radius: 18%;
+    background: var(--shu);
+    color: #fff6ef;
+    box-shadow:
+      inset 0 0 0 2px rgba(255, 246, 239, 0.85),
+      inset 0 0 0 4px var(--shu);
+    font-family: var(--font-brush);
+    font-size: calc(var(--size) * 0.3);
+    line-height: 1;
+    rotate: -4deg;
+    animation: press 0.9s var(--ease-out) 1.1s both;
+  }
+
+  .hanko span {
+    writing-mode: vertical-rl;
+    letter-spacing: -0.05em;
+  }
+
+  @keyframes press {
+    from {
+      opacity: 0;
+      scale: 1.8;
+      rotate: -16deg;
+      filter: blur(3px);
+    }
+    60% {
+      opacity: 1;
+      scale: 0.94;
+      filter: none;
+    }
+    to {
+      scale: 1;
+      rotate: -4deg;
+    }
+  }
+</style>

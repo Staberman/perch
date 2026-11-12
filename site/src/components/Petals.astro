@@ -1,0 +1,76 @@
+---
+import { seeded } from "../lib/seeded.ts";
+
+/** Sakura petals drifting down through their container, which must be positioned. */
+interface Props {
+  count?: number;
+  seed?: number;
+}
+
+const { count = 14, seed = 3 } = Astro.props;
+const random = seeded(seed);
+const petals = Array.from({ length: count }, () => ({
+  left: random() * 100,
+  size: 7 + random() * 7,
+  fall: 14 + random() * 12,
+  sway: 3 + random() * 3,
+  delay: -random() * 26,
+  hue: random() < 0.35 ? "var(--sakura)" : "#f7d3db",
+}));
+---
+
+<div class="petals" aria-hidden="true">
+  {
+    petals.map((p) => (
+      <span class="petal" style={`left:${p.left}%; --size:${p.size}px; --fall:${p.fall}s; --sway:${p.sway}s; --delay:${p.delay}s; --hue:${p.hue}`}>
+        <i />
+      </span>
+    ))
+  }
+</div>
+
+<style>
+  .petals {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .petal {
+    position: absolute;
+    top: -24px;
+    animation: fall var(--fall) linear var(--delay) infinite;
+  }
+
+  .petal i {
+    display: block;
+    width: var(--size);
+    height: calc(var(--size) * 0.72);
+    border-radius: 100% 0 100% 0;
+    background: linear-gradient(135deg, #fff 0%, var(--hue) 70%);
+    opacity: 0.85;
+    animation: sway var(--sway) var(--ease-in-out) var(--delay) infinite alternate;
+  }
+
+  @keyframes fall {
+    to {
+      translate: 0 calc(100vh + 48px);
+    }
+  }
+
+  @keyframes sway {
+    from {
+      transform: translateX(-28px) rotate(-30deg) rotateY(0deg);
+    }
+    to {
+      transform: translateX(28px) rotate(40deg) rotateY(180deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .petals {
+      display: none;
+    }
+  }
+</style>

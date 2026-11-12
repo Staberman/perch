@@ -1,0 +1,228 @@
+---
+import { sections } from "../data/site.ts";
+import SectionHeader from "./SectionHeader.astro";
+
+const nodes = [
+  { tag: "hooks", name: "Claude Code", text: "Every prompt, tool call and stop, straight from your sessions." },
+  { tag: "127.0.0.1", name: "tomari agent", text: "Tracks each session's state, keeps your pins and opens sessions.", main: true },
+  { tag: "WebSocket + token", name: "tomari-overlay", text: "The strip and the menu bar item. Native, and only a few megabytes." },
+];
+
+const stats = [
+  { value: "0.5%", label: "of one CPU core, give or take" },
+  { value: "13 MB", label: "of memory while it animates" },
+  { value: "0", label: "telemetry, ever" },
+  { value: "127.0.0.1", label: "the only address it listens on" },
+];
+---
+
+<section class="section" id="how">
+  <div class="container">
+    <SectionHeader {...sections.how}>
+      <Fragment slot="title">Small pieces, all <em>on your Mac</em>.</Fragment>
+      Claude Code reports every event to a small local agent through hooks. The strip listens to the agent and draws the creatures.
+    </SectionHeader>
+
+    <ol class="flow" data-reveal>
+      {
+        nodes.map((node, i) => (
+          <>
+            {i > 0 && (
+              <li class="wire" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </li>
+            )}
+            <li class:list={["node", { main: node.main }]}>
+              <span class="tag">{node.tag}</span>
+              <b>{node.name}</b>
+              <span class="text">{node.text}</span>
+            </li>
+          </>
+        ))
+      }
+    </ol>
+
+    <dl class="stats" data-reveal>
+      {
+        stats.map((s) => (
+          <div>
+            <dt>{s.value}</dt>
+            <dd>{s.label}</dd>
+          </div>
+        ))
+      }
+    </dl>
+  </div>
+</section>
+
+<style>
+  .flow {
+    display: grid;
+    grid-template-columns: 1fr 96px 1.1fr 96px 1fr;
+    align-items: center;
+  }
+
+  .node {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 30px 26px 26px;
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--radius);
+    background: var(--card);
+    box-shadow: var(--shadow-soft);
+  }
+
+  .node.main {
+    border-color: rgba(212, 73, 44, 0.45);
+    background: linear-gradient(180deg, #fff6f1, var(--card));
+  }
+
+  .node b {
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+  }
+
+  .text {
+    color: var(--ink-2);
+    font-size: 0.94rem;
+  }
+
+  .tag {
+    position: absolute;
+    top: -12px;
+    left: 20px;
+    padding: 1px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--hairline-strong);
+    background: var(--paper);
+    color: var(--ink-3);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+  }
+
+  .main .tag {
+    border-color: rgba(212, 73, 44, 0.45);
+    color: var(--shu);
+  }
+
+  .wire {
+    position: relative;
+    height: 2px;
+    background: radial-gradient(circle, var(--hairline-strong) 1px, transparent 1.5px) 0 50% / 8px 2px repeat-x;
+  }
+
+  .wire i {
+    position: absolute;
+    top: -3px;
+    left: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--shu);
+    box-shadow: 0 0 0 4px rgba(212, 73, 44, 0.12);
+    animation: packet 2.8s var(--ease-in-out) infinite;
+  }
+
+  .wire i:nth-child(2) {
+    animation-delay: 0.93s;
+  }
+
+  .wire i:nth-child(3) {
+    animation-delay: 1.86s;
+  }
+
+  @keyframes packet {
+    from {
+      left: 0;
+      opacity: 0;
+    }
+    20%,
+    80% {
+      opacity: 1;
+    }
+    to {
+      left: calc(100% - 8px);
+      opacity: 0;
+    }
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: clamp(48px, 7vw, 80px) 0 0;
+    border-top: 1px solid var(--hairline-strong);
+  }
+
+  .stats div {
+    padding: 26px 22px 0;
+  }
+
+  .stats div + div {
+    border-left: 1px solid var(--hairline);
+  }
+
+  dt {
+    font-family: var(--font-display);
+    font-size: clamp(1.9rem, 3.4vw, 2.7rem);
+    font-weight: 600;
+    line-height: 1.1;
+  }
+
+  dd {
+    margin: 6px 0 0;
+    color: var(--ink-3);
+    font-size: 0.92rem;
+  }
+
+  @media (max-width: 1060px) {
+    .flow {
+      grid-template-columns: minmax(0, 1fr);
+      max-width: 480px;
+      margin-inline: auto;
+    }
+
+    .wire {
+      width: 2px;
+      height: 56px;
+      margin: 8px auto;
+      background: radial-gradient(circle, var(--hairline-strong) 1px, transparent 1.5px) 50% 0 / 2px 8px repeat-y;
+    }
+
+    .wire i {
+      top: 0;
+      left: -3px;
+      animation-name: packet-down;
+    }
+
+    @keyframes packet-down {
+      from {
+        top: 0;
+        opacity: 0;
+      }
+      20%,
+      80% {
+        opacity: 1;
+      }
+      to {
+        top: calc(100% - 8px);
+        opacity: 0;
+      }
+    }
+
+    .stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .stats div:nth-child(3) {
+      border-left: 0;
+    }
+
+    .stats div:nth-child(n + 3) {
+      padding-top: 22px;
+    }
+  }
+</style>
