@@ -206,6 +206,19 @@ describe("reconcile (poll of `claude agents --json`)", () => {
     expect(next!.state).toBe("working");
   });
 
+  test("a stale prompt clears when the poll says idle: Esc at a prompt fires no hook", () => {
+    for (const note of [
+      ev("Notification", { notification_type: "permission_prompt", message: "…" }),
+      ev("Notification", { notification_type: "elicitation_dialog", message: "…" }),
+    ]) {
+      const rec = run([note]);
+      expect(reconcile(records(rec), [agent("idle")], T0 + 1000)[0]!.state).toBe(rec.state); // hooks are fresh
+      const [next] = reconcile(records(rec), [agent("idle")], T0 + GRACE_MS + 1);
+      expect(next!.state).toBe("idle"); // not "done": that would keep the creature awake as "finished"
+      expect(next!.activity).toBeNull();
+    }
+  });
+
   test("a busy poll does not wake a finished turn", () => {
     // A background task keeps the poll at busy after the turn ends.
     for (const end of [ev("Stop"), ev("StopFailure", { error: "rate_limit" })]) {

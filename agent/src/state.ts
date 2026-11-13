@@ -182,6 +182,8 @@ function reconcileOne(prev: SessionRecord | undefined, agent: AgentEntry, now: n
   const { state } = rec;
   const finished = state === "done" || state === "error";
   if (agent.status === "idle" && (state === "working" || state === "compacting")) return moveTo(rec, "done", null, now);
+  // Esc at a prompt fires no hook; idle, unlike done, does not ask for attention.
+  if (agent.status === "idle" && (state === "needs_permission" || state === "needs_input")) return moveTo(rec, "idle", null, now);
   if (agent.status === "busy" && state !== "working" && state !== "compacting" && !finished) return moveTo(rec, "working", null, now);
   if (agent.status === "waiting" && state === "working") return moveTo(rec, "needs_input", "Waiting for you", now);
   return rec;
