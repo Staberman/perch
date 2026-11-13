@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Observation
 import TomariCore
@@ -27,6 +28,7 @@ final class AgentLink {
     @ObservationIgnored private var lastSent: ClientMessage?
     @ObservationIgnored private var libraryReply: (([LibraryEntry]) -> Void)?
     @ObservationIgnored private var noticeExpiry: Task<Void, Never>?
+    @ObservationIgnored private var doneChime = DoneChime()
 
     private static let minRetry: Duration = .seconds(1)
     private static let maxRetry: Duration = .seconds(10)
@@ -88,8 +90,18 @@ final class AgentLink {
                 libraryReply?(entries)
                 libraryReply = nil
             default:
+                chimeIfFinished(parsed)
                 list.apply(parsed)
             }
+        }
+    }
+
+    /// Called before `parsed` is applied, so the list still holds the session as it was.
+    private func chimeIfFinished(_ parsed: ServerMessage) {
+        guard Preferences.soundWhenDone, case .session(let session) = parsed else { return }
+        let terminalFront = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.Terminal"
+        if doneChime.shouldChime(for: parsed, previous: list.sessions[session.id], focusedId: list.focusedId, terminalFrontmost: terminalFront, at: Date()) {
+            NSSound(named: "Glass")?.play()
         }
     }
 

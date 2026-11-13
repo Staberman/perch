@@ -40,6 +40,7 @@ You need the Claude desktop app (sessions in its Code tab), the Claude Code CLI 
 - **Hover** for the session's name and status, e.g. `Bash: npm test` or `done · 5m`.
 - **Click** to open the session in the Claude desktop app, even one the app has stopped. A session running in Terminal.app brings its tab to the front instead. Without the desktop app, a closed session resumes with `claude --resume` in a new Terminal tab, in the folder where it ran. The session in front is ringed in white.
 - **Right-click** (or control-click) to pin or unpin the session and pick its character and color.
+- **Sound when done**: off by default; turn it on from the menu bar icon to hear a short chime when a session finishes working. It stays quiet for the session you are looking at in Terminal.
 - **Stays out of the way**: the strip floats over every Space and full-screen app and never takes focus from the app you're using. The arrow tab beside it slides the strip off the edge, leaving just the tab, which blinks orange when a session needs you; click it again to bring the strip back.
 - **Menu bar item** to show or hide the strip, move it to the left or right edge, and see how many sessions are waiting for you. Quit Tomari there; it starts again at your next login.
 
