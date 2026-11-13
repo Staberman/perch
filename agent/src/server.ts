@@ -130,7 +130,7 @@ export function startServers({
           switch (msg.type) {
             case "open": {
               const session = hub.get(msg.id);
-              const result = await open(msg.id, session?.cwd, session?.kind, session?.name);
+              const result = await open(msg.id, session?.cwd, session?.kind, hub.titleOf(msg.id) ?? undefined);
               // The desktop log confirms focus a moment later; show it right away.
               if (result.ok) hub.setFocused(msg.id);
               else failed(ws, result.error);

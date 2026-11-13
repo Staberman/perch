@@ -19,7 +19,7 @@ const DESKTOP: DesktopSession[] = [
 
 let servers: ReturnType<typeof startServers>;
 let hub: SessionHub;
-let opened: [id: string, cwd: string | undefined, kind: string | undefined][];
+let opened: [id: string, cwd: string | undefined, kind: string | undefined, name: string | undefined][];
 let stopped: string[];
 let stop: (id: string) => Promise<OpenResult>;
 let desktopSessions: () => Promise<DesktopSession[]>;
@@ -43,8 +43,8 @@ beforeEach(() => {
     hookPort: 0, // 0 = any free port
     panelPort: 0,
     panelHost: "127.0.0.1",
-    open: async (id, cwd, kind) => {
-      opened.push([id, cwd, kind]);
+    open: async (id, cwd, kind, name) => {
+      opened.push([id, cwd, kind, name]);
       return { ok: true, command: ["fake-open", id] };
     },
     desktopSessions: () => desktopSessions(),
@@ -126,7 +126,7 @@ test("pin, icon and open commands; anything else is refused", async () => {
 
   ws.send(JSON.stringify({ type: "open", id: ID }));
   await waitFor(() => opened.length === 1);
-  expect(opened).toEqual([[ID, "/tmp/demo", undefined]]); // where it last ran, for resuming it in a terminal
+  expect(opened).toEqual([[ID, "/tmp/demo", undefined, undefined]]); // where it last ran, for resuming it in a terminal
   expect(await next()).toEqual({ type: "focus", id: ID });
 
   ws.send(JSON.stringify({ type: "open", id: "11111111-1111-1111-1111-111111111111" }));
@@ -258,7 +258,25 @@ test("opening a background session tells the opener its kind", async () => {
   await next(); // snapshot
   ws.send(JSON.stringify({ type: "open", id: BG }));
   await waitFor(() => opened.length === 1);
-  expect(opened).toEqual([[BG, "/tmp/bg", "background"]]);
+  expect(opened).toEqual([[BG, "/tmp/bg", "background", undefined]]);
+  ws.close();
+});
+
+test("opening passes the session's real title, not the label the panel shows", async () => {
+  const OTHER = "9a8b7c6d-1111-4222-8333-444455556666";
+  // Two untitled sessions in one folder: both get a label of folder and prompt, but neither has a title.
+  await postHook({ hook_event_name: "UserPromptSubmit", session_id: ID, cwd: "/tmp/demo", prompt: "first thing" });
+  await postHook({ hook_event_name: "UserPromptSubmit", session_id: OTHER, cwd: "/tmp/demo", prompt: "second thing" });
+  hub.handleAgents([{ sessionId: BG, name: "Release work", cwd: "/tmp/bg", kind: "background", status: "idle", startedAt: 0 }]);
+  expect(hub.get(ID)!.name).toBe("demo · first thing");
+  const { ws, next } = await connect();
+  await next(); // snapshot
+  for (const id of [ID, BG]) ws.send(JSON.stringify({ type: "open", id }));
+  await waitFor(() => opened.length === 2);
+  expect(opened.map(([id, , , name]) => [id, name])).toEqual([
+    [ID, undefined],
+    [BG, "Release work"],
+  ]);
   ws.close();
 });
 

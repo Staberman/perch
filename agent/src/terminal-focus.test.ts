@@ -75,6 +75,37 @@ test("focus is cleared when the focused session ends", async () => {
   }
 });
 
+test("returning to a tab whose session is no longer the focused one focuses it again", async () => {
+  // The hub's focus can change without the watcher: opening a background session sets it directly.
+  let focused: string | null = null;
+  const front = { tty: "/dev/ttys001" };
+  const seen: (string | null)[] = [];
+  const stop = watchTerminalFocus(
+    (id) => {
+      seen.push(id);
+      focused = id;
+    },
+    {
+      intervalMs: 5,
+      run: async () => front.tty,
+      sessionForTty: async (tty) => ({ "/dev/ttys001": A, "/dev/ttys002": B } as Record<string, string>)[tty] ?? null,
+      current: () => focused,
+    },
+  );
+  try {
+    await waitFor(() => seen.length === 1);
+    focused = B; // the user clicked B in the panel; its new attach tab is not mapped to a session
+    front.tty = "/dev/ttys099";
+    await Bun.sleep(40);
+    expect(seen).toEqual([A]);
+    front.tty = "/dev/ttys001"; // back to tab A
+    await waitFor(() => seen.length === 2);
+    expect(seen).toEqual([A, A]);
+  } finally {
+    stop();
+  }
+});
+
 test("it stays quiet while the desktop focus source is active", async () => {
   let runs = 0;
   const { seen, stop } = setup({
@@ -105,6 +136,28 @@ test("an osascript failure is logged once, then it backs off", async () => {
   expect(runs).toBe(1); // backoff is 60 s: no second try
   expect(logged).toHaveLength(1);
   expect(logged[0]).toContain("osascript exited with 1");
+});
+
+test("after failures it backs off 10 s, doubling up to a cap, and resets on success", async () => {
+  const waits: number[] = [];
+  const outcomes = [false, false, false, false, true, false];
+  const { stop } = setup({
+    intervalMs: 7,
+    backoffMs: 10,
+    maxBackoffMs: 30,
+    run: async () => {
+      if (outcomes.shift() === false) throw new Error("boom");
+      return "/dev/ttys001";
+    },
+    sleep: async (ms) => {
+      waits.push(ms);
+      await Bun.sleep(1);
+    },
+    log: () => {},
+  });
+  await waitFor(() => waits.length >= 6);
+  stop();
+  expect(waits.slice(0, 6)).toEqual([10, 20, 30, 30, 7, 10]);
 });
 
 test("a tty maps to the live session on it, asking ps once per pid", async () => {

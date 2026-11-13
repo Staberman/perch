@@ -27,6 +27,7 @@ export async function runAgent({ lan }: { lan: boolean }) {
   const stopTerminalFocus = watchTerminalFocus((id) => hub.setFocused(id), {
     enabled: () => !desktopPresent(),
     alive: (id) => hub.get(id)?.live ?? false,
+    current: () => hub.focusedId,
   });
   const pruneTimer = setInterval(() => hub.prune(), 10 * 60 * 1000);
 

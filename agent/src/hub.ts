@@ -14,6 +14,8 @@ export type HubChange =
 export type HubListener = (change: HubChange) => void;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+/** How long the poll is ignored for a session just stopped: `claude agents` may list the process a few seconds more. */
+const STOPPED_GRACE_MS = 30_000;
 const VISIBLE: (keyof SessionRecord)[] = ["name", "cwd", "state", "activity", "live", "stateSince", "kind"];
 
 export class SessionHub {
@@ -26,6 +28,8 @@ export class SessionHub {
   private transcripts = new Map<string, string>();
   /** Sessions whose first prompt was already looked up in the transcript, found or not: each is read once. */
   private lookedUp = new Set<string>();
+  /** Sessions stopped from the panel → when the poll may list them again; in memory only. */
+  private stoppedUntil = new Map<string, number>();
   /** The label the panel last saw for each session. */
   private labels = new Map<string, string>();
   /** Session in front in the terminal or desktop app; not persisted. */
@@ -78,7 +82,11 @@ export class SessionHub {
   }
 
   handleHook(event: HookEvent) {
-    if (typeof event.transcript_path === "string") this.transcripts.set(event.session_id, event.transcript_path);
+    if (typeof event.transcript_path === "string") {
+      // A lookup that ran before any path was known may have missed: the first path earns one more try.
+      if (!this.transcripts.has(event.session_id) && !this.prompts.has(event.session_id)) this.lookedUp.delete(event.session_id);
+      this.transcripts.set(event.session_id, event.transcript_path);
+    }
     if (event.hook_event_name === "UserPromptSubmit" && typeof event.prompt === "string" && !this.prompts.has(event.session_id)) {
       const snippet = snippetOf(event.prompt);
       if (snippet) this.prompts.set(event.session_id, snippet);
@@ -87,7 +95,10 @@ export class SessionHub {
   }
 
   handleAgents(agents: AgentEntry[]) {
-    for (const rec of reconcile(this.records, agents, this.now())) this.commit(rec);
+    const now = this.now();
+    for (const [id, until] of this.stoppedUntil) if (until <= now) this.stoppedUntil.delete(id);
+    const polled = agents.filter((agent) => !this.stoppedUntil.has(agent.sessionId));
+    for (const rec of reconcile(this.records, polled, now)) this.commit(rec);
   }
 
   /**
@@ -116,7 +127,14 @@ export class SessionHub {
     const rec = this.records.get(id);
     if (!rec) return false;
     this.commit({ ...rec, state: "ended", activity: null, live: false, pid: null, stateSince: this.now() });
+    this.stoppedUntil.set(id, this.now() + STOPPED_GRACE_MS);
+    if (this.focusedId === id) this.setFocused(null);
     return true;
+  }
+
+  /** The session's real title, or null if it has none: unlike `get(id).name`, never the display label. */
+  titleOf(id: string): string | null {
+    return this.records.get(id)?.name ?? null;
   }
 
   /** False if the session is unknown. */
@@ -157,6 +175,7 @@ export class SessionHub {
         this.labels.delete(rec.id);
         this.transcripts.delete(rec.id);
         this.lookedUp.delete(rec.id);
+        this.stoppedUntil.delete(rec.id);
         this.store.deleteSession(rec.id);
         this.emit({ type: "removed", id: rec.id });
       }

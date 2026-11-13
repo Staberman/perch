@@ -20,8 +20,14 @@ end tell`;
 
 export interface TerminalFocusOptions {
   intervalMs?: number;
-  /** After a failed osascript call, how long to wait before trying again. */
+  /** After a failed osascript call, how long to wait before trying again; it doubles on each further failure. */
   backoffMs?: number;
+  /** The longest the backoff grows to. */
+  maxBackoffMs?: number;
+  /** The session currently focused, wherever that came from (e.g. the hub); defaults to the one this watcher last reported. */
+  current?: () => string | null;
+  /** Waits between ticks. Replaceable for tests. */
+  sleep?: (ms: number) => Promise<unknown>;
   /** Polled each tick; false pauses the watcher, e.g. while the desktop app is the focus source. */
   enabled?: () => boolean;
   /** Returns the front tab's tty like "/dev/ttys003", or "" when Terminal isn't in front. Replaceable for tests. */
@@ -80,17 +86,21 @@ export function watchTerminalFocus(
   onFocus: (sessionId: string | null) => void,
   {
     intervalMs = 2000,
-    backoffMs = 60_000,
+    backoffMs = 10_000,
+    maxBackoffMs = 60_000,
     enabled = () => true,
     run = runFrontTty,
     sessionForTty = ttyResolver(),
     alive = () => true,
     log = (message) => console.error(message),
+    sleep = Bun.sleep,
+    current,
   }: TerminalFocusOptions = {},
 ) {
   let stopped = false;
-  let last: string | null = null;
-  let failing = false;
+  let reported: string | null = null;
+  const focused = current ?? (() => reported);
+  let failures = 0;
 
   (async () => {
     while (!stopped) {
@@ -99,21 +109,24 @@ export function watchTerminalFocus(
         try {
           const tty = await run();
           const id = tty ? await sessionForTty(tty) : null;
-          if (id && id !== last) {
-            last = id;
+          // Compared with the focus as it stands, not with what this watcher reported: opening a session
+          // from the panel moves the focus too, and returning to the tab it left must win it back.
+          const now = focused();
+          if (id && id !== now) {
+            reported = id;
             onFocus(id);
-          } else if (last && !alive(last)) {
-            last = null;
+          } else if (now && !alive(now)) {
+            reported = null;
             onFocus(null);
           }
-          failing = false;
+          failures = 0;
         } catch (error) {
-          if (!failing) log(`terminal focus failing, retrying every ${backoffMs / 1000}s: ${error instanceof Error ? error.message : String(error)}`);
-          failing = true;
-          wait = backoffMs;
+          wait = Math.min(backoffMs * 2 ** failures, maxBackoffMs);
+          if (failures === 0) log(`terminal focus failing, backing off: ${error instanceof Error ? error.message : String(error)}`);
+          failures++;
         }
       }
-      await Bun.sleep(wait);
+      await sleep(wait);
     }
   })();
 

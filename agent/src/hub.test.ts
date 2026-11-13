@@ -23,6 +23,14 @@ function setup(store = new Store(), start = 1_000_000, readPrompt?: (id: string,
   return { hub, store, changes, tick: (ms: number) => (now += ms) };
 }
 
+async function waitFor(condition: () => boolean, timeoutMs = 3000) {
+  const start = Date.now();
+  while (!condition()) {
+    if (Date.now() - start > timeoutMs) throw new Error("timed out");
+    await Bun.sleep(1);
+  }
+}
+
 describe("SessionHub", () => {
   test("a hook event creates a session named after its folder until the poll names it", () => {
     const { hub } = setup();
@@ -49,22 +57,24 @@ describe("SessionHub", () => {
 
   test("a missing snippet is read from the transcript, lazily, once, and announced when it arrives", async () => {
     const calls: [string, string | undefined][] = [];
+    const reads: Promise<unknown>[] = [];
     const answers: Record<string, string | null> = { [A]: "fix the login redirect loop on Safari", [B]: null };
-    const { hub, changes } = setup(new Store(), 1_000_000, async (id, path) => {
+    const { hub, changes } = setup(new Store(), 1_000_000, (id, path) => {
       calls.push([id, path]);
-      return answers[id] ?? null;
+      const read = Promise.resolve(answers[id] ?? null);
+      reads.push(read);
+      return read;
     });
     hub.handleHook(ev(A, "SessionStart", { transcript_path: "/Users/dev/.claude/projects/p/a.jsonl" }));
     expect(calls).toEqual([]); // no clash, nothing to read
     hub.handleHook(ev(B, "SessionStart"));
     expect(hub.get(A)!.name).toBe(`claude-panel · ${A.slice(0, 4)}`); // the short id until the read lands
-    await Bun.sleep(10);
-    expect(hub.get(A)!.name).toBe("claude-panel · fix the login redirect…");
+    await waitFor(() => hub.get(A)!.name.endsWith("redirect…"));
     expect(hub.get(B)!.name).toBe(`claude-panel · ${B.slice(0, 4)}`); // not found: the fallback stays
     expect(changes.some((c) => c.type === "session" && c.session.id === A && c.session.name.endsWith("redirect…"))).toBe(true);
     hub.handleHook(ev(A, "Stop"));
     hub.handleHook(ev(B, "Stop"));
-    await Bun.sleep(10);
+    await Promise.allSettled(reads); // every read has landed; the hub's own handlers ran before this continues
     expect(calls).toEqual([
       [A, "/Users/dev/.claude/projects/p/a.jsonl"],
       [B, undefined],
@@ -72,25 +82,61 @@ describe("SessionHub", () => {
   });
 
   test("a read that fails leaves the short id and does not break hook handling", async () => {
-    const { hub } = setup(new Store(), 1_000_000, async () => {
-      throw new Error("EACCES");
+    const reads: Promise<unknown>[] = [];
+    const { hub } = setup(new Store(), 1_000_000, () => {
+      const read = Promise.reject(new Error("EACCES"));
+      reads.push(read);
+      return read;
     });
     hub.handleHook(ev(A, "SessionStart"));
     hub.handleHook(ev(B, "SessionStart"));
-    await Bun.sleep(10);
+    await Promise.allSettled(reads);
     expect(hub.get(A)!.name).toBe(`claude-panel · ${A.slice(0, 4)}`);
   });
 
   test("a prompt seen by hooks wins over a late transcript read", async () => {
     const pending: ((v: string) => void)[] = [];
-    const { hub } = setup(new Store(), 1_000_000, () => new Promise((r) => pending.push(r)));
+    const reads: Promise<unknown>[] = [];
+    const { hub } = setup(new Store(), 1_000_000, () => {
+      const read = new Promise<string>((r) => pending.push(r));
+      reads.push(read);
+      return read;
+    });
     hub.handleHook(ev(A, "SessionStart"));
     hub.handleHook(ev(B, "SessionStart"));
     hub.handleHook(ev(A, "UserPromptSubmit", { prompt: "live prompt" }));
     for (const release of pending) release("transcript prompt");
-    await Bun.sleep(10);
+    await Promise.allSettled(reads);
     expect(hub.get(A)!.name).toBe("claude-panel · live prompt");
     expect(hub.get(B)!.name).toBe("claude-panel · transcript prompt");
+  });
+
+  test("a lookup that ran with no transcript path is tried once more when a hook brings the path", async () => {
+    const calls: [string, string | undefined][] = [];
+    const reads: Promise<unknown>[] = [];
+    const { hub } = setup(new Store(), 1_000_000, (id, path) => {
+      calls.push([id, path]);
+      const read = Promise.resolve(path && id === A ? "fix the login redirect loop" : null);
+      reads.push(read);
+      return read;
+    });
+    hub.handleHook(ev(A, "SessionStart"));
+    hub.handleHook(ev(B, "SessionStart"));
+    await Promise.allSettled(reads);
+    expect(calls).toEqual([[A, undefined], [B, undefined]]);
+    expect(hub.get(A)!.name).toBe(`claude-panel · ${A.slice(0, 4)}`);
+
+    hub.handleHook(ev(A, "Stop", { transcript_path: "/Users/dev/.claude/projects/p/a.jsonl" }));
+    await waitFor(() => hub.get(A)!.name.endsWith("redirect…"));
+    hub.handleHook(ev(A, "Stop", { transcript_path: "/Users/dev/.claude/projects/p/a.jsonl" }));
+    hub.handleHook(ev(B, "Stop", { transcript_path: "/Users/dev/.claude/projects/p/b.jsonl" }));
+    await Promise.allSettled(reads);
+    expect(calls).toEqual([
+      [A, undefined],
+      [B, undefined],
+      [A, "/Users/dev/.claude/projects/p/a.jsonl"],
+      [B, "/Users/dev/.claude/projects/p/b.jsonl"],
+    ]); // one more try each, and no more after that
   });
 
   test("a lone session, or one with a title, keeps its plain label", () => {
@@ -299,6 +345,43 @@ describe("background sessions", () => {
     expect(hub.get(A)).toMatchObject({ state: "ended", live: false, activity: null });
     expect(changes).toMatchObject([{ type: "session", session: { id: A, state: "ended", live: false } }]);
     expect(hub.endSession("c0ffee00-0000-4000-8000-000000000000")).toBe(false);
+  });
+
+  test("a stopped session stays ended while the poll still lists its process, for a while", () => {
+    const { hub, tick } = setup();
+    const entry = { sessionId: A, cwd: "/Users/dev/bg", kind: "background", status: "busy" as const, startedAt: 0 };
+    hub.handleAgents([entry]);
+    hub.endSession(A);
+    tick(5_000);
+    hub.handleAgents([entry]);
+    expect(hub.get(A)).toMatchObject({ state: "ended", live: false });
+    tick(30_000); // the process should be gone by now: a listing means it really runs again
+    hub.handleAgents([entry]);
+    expect(hub.get(A)).toMatchObject({ live: true });
+  });
+
+  test("stopping the focused session clears the focus", () => {
+    const { hub, changes } = setup();
+    hub.handleAgents([{ sessionId: A, cwd: "/Users/dev/bg", kind: "background", status: "busy", startedAt: 0 }]);
+    hub.handleAgents([{ sessionId: B, cwd: "/Users/dev/other", kind: "background", status: "busy", startedAt: 0 }]);
+    hub.setFocused(A);
+    changes.length = 0;
+    hub.endSession(B);
+    expect(hub.focusedId).toBe(A); // another session's stop leaves it alone
+    hub.endSession(A);
+    expect(hub.focusedId).toBeNull();
+    expect(changes).toContainEqual({ type: "focus", id: null });
+  });
+
+  test("titleOf gives the real title, never the display label", () => {
+    const { hub } = setup();
+    hub.handleHook(ev(A, "UserPromptSubmit", { prompt: "first" }));
+    hub.handleHook(ev(B, "UserPromptSubmit", { prompt: "second" }));
+    expect(hub.get(A)!.name).toBe("claude-panel · first"); // a label made of folder and prompt
+    expect(hub.titleOf(A)).toBeNull();
+    hub.handleAgents([{ sessionId: B, name: "Release work", cwd: "/Users/dev/claude-panel", status: "busy", startedAt: 0 }]);
+    expect(hub.titleOf(B)).toBe("Release work");
+    expect(hub.titleOf("c0ffee00-0000-4000-8000-000000000000")).toBeNull();
   });
 });
 
