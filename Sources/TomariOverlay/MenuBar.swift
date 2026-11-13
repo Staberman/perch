@@ -54,7 +54,7 @@ final class MenuBar: NSObject, NSMenuDelegate {
         // Retried here so the shortcut recovers once whoever held it lets go.
         if Preferences.jumpToWaiting { jumpKey.register() }
         let unavailable = Preferences.jumpToWaiting && !jumpKey.isRegistered
-        let jump = entry("Jump to waiting session (⌃⌥J)" + (unavailable ? " (unavailable)" : ""), unavailable ? nil : #selector(toggleJump))
+        let jump = entry("Jump to waiting or finished session (⌃⌥J)" + (unavailable ? " (unavailable)" : ""), unavailable ? nil : #selector(toggleJump))
         jump.state = Preferences.jumpToWaiting && !unavailable ? .on : .off
         menu.addItem(jump)
 

@@ -1,16 +1,21 @@
 import Foundation
 
-/// Picks the session the "jump to waiting session" hotkey should open.
+/// Picks the session the "jump" hotkey should open.
 public enum WaitingJump {
-    /// Live sessions waiting for the user are ordered by how long they have waited, longest first.
-    /// If the focused session is one of them the target is the next one after it, wrapping around,
-    /// so repeated presses visit every waiting session. Nil when nothing is waiting.
+    /// Live sessions waiting for the user come first, ordered by how long they have waited, longest first.
+    /// With none waiting, the target is the session that finished most recently, so the done chime can be
+    /// followed by a jump. Either way, if the focused session is in that list the target is the next one
+    /// after it, wrapping around, so repeated presses visit them all. Nil when nothing is waiting or finished.
     public static func target(in sessions: [PanelSession], focusedId: String?) -> String? {
-        let waiting = sessions.filter { $0.live && $0.needsAttention }.sorted {
-            ($0.stateSince, $0.id) < ($1.stateSince, $1.id)
-        }
-        guard let first = waiting.first else { return nil }
-        guard let focused = waiting.firstIndex(where: { $0.id == focusedId }) else { return first.id }
-        return waiting[(focused + 1) % waiting.count].id
+        let live = sessions.filter(\.live)
+        let waiting = live.filter(\.needsAttention).sorted { ($0.stateSince, $0.id) < ($1.stateSince, $1.id) }
+        if !waiting.isEmpty { return next(in: waiting, after: focusedId) }
+        let finished = live.filter { $0.state == .done }.sorted { ($0.stateSince, $0.id) > ($1.stateSince, $1.id) }
+        return finished.isEmpty ? nil : next(in: finished, after: focusedId)
+    }
+
+    private static func next(in ordered: [PanelSession], after focusedId: String?) -> String {
+        guard let focused = ordered.firstIndex(where: { $0.id == focusedId }) else { return ordered[0].id }
+        return ordered[(focused + 1) % ordered.count].id
     }
 }

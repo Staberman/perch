@@ -1,3 +1,4 @@
+import AppKit
 import Carbon.HIToolbox
 import Foundation
 import TomariCore
@@ -53,7 +54,8 @@ final class JumpHotKey {
     }
 
     private func pressed() {
-        guard let id = WaitingJump.target(in: Array(link.list.sessions.values), focusedId: link.list.focusedId) else { return }
+        // The system beep tells the user the press was heard even though there is nowhere to go.
+        guard let id = WaitingJump.target(in: Array(link.list.sessions.values), focusedId: link.list.focusedId) else { return NSSound.beep() }
         link.send(.open(id: id))
     }
 

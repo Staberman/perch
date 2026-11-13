@@ -43,8 +43,32 @@ func waitingJumpTests() {
         expectEqual(WaitingJump.target(in: [working, done, dead, real], focusedId: nil), real.id)
     }
 
-    test("returns nil when nothing is waiting") {
+    test("returns nil when nothing is waiting or finished") {
         expect(WaitingJump.target(in: [], focusedId: nil) == nil, "empty")
         expect(WaitingJump.target(in: [session(state: .working), waiting(since: 1, live: false)], focusedId: nil) == nil, "none eligible")
+    }
+
+    test("with nothing waiting, goes to the session that finished most recently") {
+        let older = session(state: .done, stateSince: now - 900)
+        let newest = session(state: .done, stateSince: now - 60)
+        let busy = session(state: .working, stateSince: now - 5)
+        expectEqual(WaitingJump.target(in: [older, busy, newest], focusedId: nil), newest.id)
+    }
+
+    test("with nothing waiting, repeated presses go from the newest finished session to older ones") {
+        let a = session(state: .done, stateSince: now - 60), b = session(state: .done, stateSince: now - 600)
+        expectEqual(WaitingJump.target(in: [b, a], focusedId: a.id), b.id)
+        expectEqual(WaitingJump.target(in: [b, a], focusedId: b.id), a.id)
+    }
+
+    test("a waiting session wins over one that just finished") {
+        let justDone = session(state: .done, stateSince: now - 1)
+        let asking = waiting(since: 600)
+        expectEqual(WaitingJump.target(in: [justDone, asking], focusedId: nil), asking.id)
+    }
+
+    test("finished sessions that are no longer live are skipped") {
+        let gone = session(state: .done, live: false, stateSince: now - 10)
+        expect(WaitingJump.target(in: [gone], focusedId: nil) == nil, "not live")
     }
 }
