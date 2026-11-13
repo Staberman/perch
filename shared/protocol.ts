@@ -81,6 +81,7 @@ export type ServerMessage =
 export type ClientMessage =
   | { type: "open"; id: string }
   | { type: "pin"; id: string; pinned: boolean }
+  | { type: "stop"; id: string } // stops a live background session; its conversation is kept
   | { type: "icon"; id: string; icon: SessionIcon } // pins the session if it isn't yet
   | { type: "library" }
   | { type: "terminal" }; // opens a shell in a new Terminal.app tab, without Claude

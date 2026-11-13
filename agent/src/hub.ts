@@ -111,6 +111,14 @@ export class SessionHub {
     this.commit({ id, name, cwd, state: "ended", activity: null, live: false, pid: null, stateSince: since, lastEventAt: 0 });
   }
 
+  /** Ends a session whose process was just stopped, without waiting for the poll. False if unknown. */
+  endSession(id: string): boolean {
+    const rec = this.records.get(id);
+    if (!rec) return false;
+    this.commit({ ...rec, state: "ended", activity: null, live: false, pid: null, stateSince: this.now() });
+    return true;
+  }
+
   /** False if the session is unknown. */
   setPinned(id: string, pinned: boolean): boolean {
     const rec = this.records.get(id);

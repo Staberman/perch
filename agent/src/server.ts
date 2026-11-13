@@ -10,6 +10,7 @@ import { desktopSessionsLister, type DesktopSession } from "./desktop-sessions.t
 import type { SessionHub } from "./hub.ts";
 import { openSession, openTerminalTab, type OpenResult } from "./open-session.ts";
 import { parseClientMessage } from "./protocol-guard.ts";
+import { stopSession } from "./stop-session.ts";
 import type { HookEvent } from "./state.ts";
 
 export interface ServerOptions {
@@ -21,6 +22,7 @@ export interface ServerOptions {
   /** Replaceable so tests don't open real sessions or tabs, or read the real desktop app. */
   open?: (id: string, cwd?: string, kind?: string) => Promise<OpenResult>;
   terminal?: () => Promise<OpenResult>;
+  stop?: (id: string) => Promise<OpenResult>;
   desktopSessions?: () => Promise<DesktopSession[]>;
 }
 
@@ -35,6 +37,7 @@ export function startServers({
   panelHost = "127.0.0.1",
   open = openSession,
   terminal = openTerminalTab,
+  stop = stopSession,
   desktopSessions = desktopSessionsLister(),
 }: ServerOptions) {
   /** Desktop sessions plus the live ones the agent sees, e.g. in a terminal; a desktop entry wins a duplicate. */
@@ -104,7 +107,7 @@ export function startServers({
             if (!result.ok) send(ws, { type: "error", message: result.error });
             return;
           }
-          if (!hub.has(msg.id) && msg.type !== "open") await adoptFromDesktop(msg.id);
+          if (!hub.has(msg.id) && msg.type !== "open" && msg.type !== "stop") await adoptFromDesktop(msg.id);
           if (!hub.has(msg.id)) return send(ws, { type: "error", message: "unknown session" });
 
           switch (msg.type) {
@@ -113,6 +116,16 @@ export function startServers({
               const result = await open(msg.id, session?.cwd, session?.kind);
               // The desktop log confirms focus a moment later; show it right away.
               if (result.ok) hub.setFocused(msg.id);
+              else send(ws, { type: "error", message: result.error });
+              break;
+            }
+            case "stop": {
+              const session = hub.get(msg.id);
+              if (!session?.live || session.kind !== "background") {
+                return send(ws, { type: "error", message: "not a running background session" });
+              }
+              const result = await stop(msg.id);
+              if (result.ok) hub.endSession(msg.id);
               else send(ws, { type: "error", message: result.error });
               break;
             }

@@ -20,11 +20,18 @@ const DESKTOP: DesktopSession[] = [
 let servers: ReturnType<typeof startServers>;
 let hub: SessionHub;
 let opened: [id: string, cwd: string | undefined, kind: string | undefined][];
+let stopped: string[];
+let stop: (id: string) => Promise<OpenResult>;
 let desktopSessions: () => Promise<DesktopSession[]>;
 let terminal: () => Promise<OpenResult>;
 
 beforeEach(() => {
   opened = [];
+  stopped = [];
+  stop = async (id) => {
+    stopped.push(id);
+    return { ok: true, command: ["fake-stop", id] };
+  };
   hub = new SessionHub(new Store());
   desktopSessions = async () => DESKTOP;
   terminal = async () => ({ ok: true, command: ["fake-terminal"] });
@@ -40,6 +47,7 @@ beforeEach(() => {
     },
     desktopSessions: () => desktopSessions(),
     terminal: () => terminal(),
+    stop: (id) => stop(id),
   });
 });
 afterEach(() => servers.stop());
@@ -248,5 +256,42 @@ test("opening a background session tells the opener its kind", async () => {
   ws.send(JSON.stringify({ type: "open", id: BG }));
   await waitFor(() => opened.length === 1);
   expect(opened).toEqual([[BG, "/tmp/bg", "background"]]);
+  ws.close();
+});
+
+test("stop ends a live background session right away", async () => {
+  hub.handleAgents([{ sessionId: BG, cwd: "/tmp/bg", kind: "background", status: "busy", startedAt: 0 }]);
+  const { ws, next } = await connect();
+  await next(); // snapshot
+  ws.send(JSON.stringify({ type: "stop", id: BG }));
+  expect(await next()).toMatchObject({ type: "session", session: { id: BG, state: "ended", live: false } });
+  expect(stopped).toEqual([BG]);
+  ws.close();
+});
+
+test("stop refuses interactive, closed and unknown sessions without running anything", async () => {
+  await postHook({ hook_event_name: "Stop", session_id: ID, cwd: "/tmp/demo" }); // kind unknown
+  hub.handleAgents([{ sessionId: BG, cwd: "/tmp/bg", kind: "background", status: "idle", startedAt: 0 }]);
+  hub.endSession(BG);
+  const { ws, next } = await connect();
+  await next(); // snapshot
+  for (const id of [ID, BG]) {
+    ws.send(JSON.stringify({ type: "stop", id }));
+    expect(await next()).toEqual({ type: "error", message: "not a running background session" });
+  }
+  ws.send(JSON.stringify({ type: "stop", id: IDLE })); // a desktop session: must not even be adopted
+  expect(await next()).toEqual({ type: "error", message: "unknown session" });
+  expect(stopped).toEqual([]);
+  ws.close();
+});
+
+test("a failed stop reaches the panel and leaves the session alone", async () => {
+  hub.handleAgents([{ sessionId: BG, cwd: "/tmp/bg", kind: "background", status: "idle", startedAt: 0 }]);
+  stop = async () => ({ ok: false, error: "claude exited with 1" });
+  const { ws, next } = await connect();
+  await next(); // snapshot
+  ws.send(JSON.stringify({ type: "stop", id: BG }));
+  expect(await next()).toEqual({ type: "error", message: "claude exited with 1" });
+  expect(hub.get(BG)!.live).toBe(true);
   ws.close();
 });

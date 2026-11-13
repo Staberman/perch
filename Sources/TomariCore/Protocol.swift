@@ -184,10 +184,12 @@ public enum ClientMessage: Equatable, Sendable {
     case library
     /// Opens a shell, without Claude, in a new Terminal.app tab.
     case terminal
+    /// Stops a live background session; its conversation is kept.
+    case stop(id: String)
 
     public var sessionId: String? {
         switch self {
-        case .open(let id), .pin(let id, _), .icon(let id, _): return id
+        case .open(let id), .pin(let id, _), .icon(let id, _), .stop(let id): return id
         case .library, .terminal: return nil
         }
     }
@@ -205,6 +207,8 @@ public enum ClientMessage: Equatable, Sendable {
             object = ["type": "library"]
         case .terminal:
             object = ["type": "terminal"]
+        case .stop(let id):
+            object = ["type": "stop", "id": id]
         }
         let body = try! JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
         return String(decoding: body, as: UTF8.self)

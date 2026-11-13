@@ -196,7 +196,7 @@ export function openTerminalTab(): Promise<OpenResult> {
   return run(["osascript", "-e", NEW_TERMINAL_TAB]);
 }
 
-async function run(command: string[]): Promise<OpenResult> {
+export async function run(command: string[]): Promise<OpenResult> {
   const proc = Bun.spawn(command, { stdout: "ignore", stderr: "pipe" });
   const code = await proc.exited;
   if (code !== 0) {

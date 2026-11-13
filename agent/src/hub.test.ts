@@ -290,12 +290,25 @@ describe("background sessions", () => {
     expect(hub.get(A)!.kind).toBe("background");
     expect(changes).toMatchObject([{ type: "session", session: { id: A, kind: "background" } }]);
   });
+
+  test("endSession ends the record at once and tells the panel", () => {
+    const { hub, changes } = setup();
+    hub.handleAgents([{ sessionId: A, cwd: "/Users/dev/bg", kind: "background", status: "busy", startedAt: 0 }]);
+    changes.length = 0;
+    expect(hub.endSession(A)).toBe(true);
+    expect(hub.get(A)).toMatchObject({ state: "ended", live: false, activity: null });
+    expect(changes).toMatchObject([{ type: "session", session: { id: A, state: "ended", live: false } }]);
+    expect(hub.endSession("c0ffee00-0000-4000-8000-000000000000")).toBe(false);
+  });
 });
 
 describe("parseClientMessage", () => {
   test("accepts the whitelisted commands", () => {
     expect(parseClientMessage(JSON.stringify({ type: "library" }))).toEqual({ type: "library" });
     expect(parseClientMessage(JSON.stringify({ type: "open", id: A }))).toEqual({ type: "open", id: A });
+    expect(parseClientMessage(JSON.stringify({ type: "stop", id: A, extra: "x" }))).toEqual({ type: "stop", id: A });
+    expect(parseClientMessage(JSON.stringify({ type: "stop", id: "--all" }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ type: "stop" }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ type: "pin", id: A, pinned: true }))).toEqual({ type: "pin", id: A, pinned: true });
     expect(parseClientMessage(JSON.stringify({ type: "icon", id: A, icon: { character: "crab", color: "#FF6A1A" } }))).toEqual({
       type: "icon",

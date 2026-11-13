@@ -39,7 +39,7 @@ You need the Claude desktop app (sessions in its Code tab), the Claude Code CLI 
 - **Hard to miss when it needs you**: a permission request blinks the creature's tile in orange; a question rings it in orange. A working creature hops with typing dots over its head, and one that finished its turn holds up a green check, ringed in green, until you reply or it falls asleep.
 - **Hover** for the session's name and status, e.g. `Bash: npm test` or `done · 5m`.
 - **Click** to open the session in the Claude desktop app, even one the app has stopped. A session running in Terminal.app brings its tab to the front instead. Without the desktop app, a closed session resumes with `claude --resume` in a new Terminal tab, in the folder where it ran. The session in front is ringed in white.
-- **Background sessions** (`claude --bg`) run in a terminal the Claude daemon owns, so clicking one attaches it with `claude attach` in a new Terminal tab.
+- **Background sessions** (`claude --bg`) run in a terminal the Claude daemon owns, so clicking one attaches it with `claude attach` in a new Terminal tab. Right-click one and choose **Stop session** to run `claude stop` (it asks first if the session is busy); the conversation is kept.
 - **Right-click** (or control-click) to pin or unpin the session and pick its character and color.
 - **Sound when done**: off by default; turn it on from the menu bar icon to hear a short chime when a session finishes working. It stays quiet for the session you are looking at in Terminal.
 - **Stays out of the way**: the strip floats over every Space and full-screen app and never takes focus from the app you're using. The arrow tab beside it slides the strip off the edge, leaving just the tab, which blinks orange when a session needs you; click it again to bring the strip back.
@@ -111,7 +111,7 @@ On Vercel, import the repository and set its Root Directory to `site`; Vercel de
 ## Privacy
 
 - Everything stays on your Mac: the overlay only talks to the agent on 127.0.0.1, and the agent only listens there unless you choose `--pi`. No telemetry.
-- The WebSocket needs the pairing token in `~/Library/Application Support/tomari/config.json`, and accepts only `open`, `pin`, `icon`, `library` and `terminal`, with validated arguments.
+- The WebSocket needs the pairing token in `~/Library/Application Support/tomari/config.json`, and accepts only `open`, `pin`, `icon`, `stop`, `library` and `terminal`, with validated arguments.
 - Tomari keeps its data in `~/Library/Application Support/tomari/`, its logs in `~/Library/Logs/tomari/`, and the strip's edge in the `com.elrincondeldev.tomari` defaults.
 - When several untitled sessions share a folder name, the strip tells them apart with the first 24 characters of each one's first prompt. It is kept in memory only, never written to disk, but it is visible on screen like the hover label below.
 - The hover label can show tool details such as a shell command, so anyone who can see your screen can read them.
