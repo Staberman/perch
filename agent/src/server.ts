@@ -73,6 +73,9 @@ export function startServers({
     if (session) hub.adopt(session.sessionId, session.title, session.cwd, session.lastActivityAt);
   }
 
+  /** Sessions with a stop under way: a second request meanwhile would run `claude stop` twice. */
+  const stopping = new Set<string>();
+
   const hookServer = Bun.serve({
     hostname: "127.0.0.1",
     port: hookPort,
@@ -142,9 +145,15 @@ export function startServers({
               if (!session?.live || session.kind !== "background") {
                 return send(ws, { type: "error", message: "not a running background session" });
               }
-              const result = await stop(msg.id);
-              if (result.ok) hub.endSession(msg.id);
-              else failed(ws, result.error);
+              if (stopping.has(msg.id)) return send(ws, { type: "error", message: "already stopping" });
+              stopping.add(msg.id);
+              try {
+                const result = await stop(msg.id);
+                if (result.ok) hub.endSession(msg.id);
+                else failed(ws, result.error);
+              } finally {
+                stopping.delete(msg.id);
+              }
               break;
             }
             case "pin":

@@ -338,3 +338,25 @@ test("a failed stop reaches the panel and leaves the session alone", async () =>
   expect(hub.get(BG)!.live).toBe(true);
   ws.close();
 });
+
+test("a second stop while the first is still running is ignored, and the id can be stopped again afterwards", async () => {
+  hub.handleAgents([{ sessionId: BG, cwd: "/tmp/bg", kind: "background", status: "busy", startedAt: 0 }]);
+  let finish!: (r: OpenResult) => void;
+  stop = (id) => {
+    stopped.push(id);
+    return new Promise((resolve) => (finish = resolve));
+  };
+  const { ws, next } = await connect();
+  await next(); // snapshot
+  ws.send(JSON.stringify({ type: "stop", id: BG }));
+  await waitFor(() => stopped.length === 1);
+  ws.send(JSON.stringify({ type: "stop", id: BG }));
+  expect(await next()).toEqual({ type: "error", message: "already stopping" });
+  expect(stopped).toEqual([BG]);
+  finish({ ok: false, error: "claude exited with 1" });
+  expect(await next()).toEqual({ type: "error", message: "claude exited with 1" });
+  ws.send(JSON.stringify({ type: "stop", id: BG })); // the guard was released
+  await waitFor(() => stopped.length === 2);
+  finish({ ok: true, command: ["fake-stop", BG] });
+  ws.close();
+});

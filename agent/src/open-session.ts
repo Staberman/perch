@@ -249,12 +249,25 @@ export function openTerminalTab(): Promise<OpenResult> {
   return run(["osascript", "-e", NEW_TERMINAL_TAB]);
 }
 
-export async function run(command: string[]): Promise<OpenResult> {
+/** A hung `claude stop` or osascript (e.g. a beachballed Terminal) must not hold its caller for minutes. */
+const COMMAND_TIMEOUT_MS = 15_000;
+
+export async function run(command: string[], timeoutMs = COMMAND_TIMEOUT_MS): Promise<OpenResult> {
   const proc = Bun.spawn(command, { stdout: "ignore", stderr: "pipe" });
-  const code = await proc.exited;
-  if (code !== 0) {
-    const stderr = (await new Response(proc.stderr).text()).trim().slice(0, 200);
-    return { ok: false, error: `${command[0]} exited with ${code}${stderr ? `: ${stderr}` : ""}` };
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    proc.kill("SIGKILL");
+  }, timeoutMs);
+  try {
+    const [code, stderr] = await Promise.all([proc.exited, new Response(proc.stderr).text()]);
+    if (timedOut) return { ok: false, error: "timed out" };
+    if (code !== 0) {
+      const detail = stderr.trim().slice(0, 200);
+      return { ok: false, error: `${command[0]} exited with ${code}${detail ? `: ${detail}` : ""}` };
+    }
+    return { ok: true, command };
+  } finally {
+    clearTimeout(timer);
   }
-  return { ok: true, command };
 }

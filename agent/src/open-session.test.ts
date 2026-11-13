@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { planOpen, sessionPids, type OpenResult } from "./open-session.ts";
+import { planOpen, run, sessionPids, type OpenResult } from "./open-session.ts";
 
 const ID = "0603472f-b7c5-4dae-b7a1-142468264b30";
 const CLOSED = "22222222-2222-4222-8222-222222222222"; // not running
@@ -147,4 +147,11 @@ test("the name never changes the interactive or closed paths", async () => {
   expect(interactive.ok && interactive.command.slice(3)).toEqual(["/dev/ttys003"]);
   const closed = await planOpen(CLOSED, { liveDir, desktopDir, kind: "background", name: "x" });
   expect(closed.ok && closed.command.slice(3)).toEqual([homedir(), CLOSED]);
+});
+
+test("a command that never finishes is killed and reported as timed out", async () => {
+  const started = Date.now();
+  expect(await run(["sleep", "30"], 50)).toEqual({ ok: false, error: "timed out" });
+  expect(Date.now() - started).toBeLessThan(5000);
+  expect(await run(["true"], 5000)).toEqual({ ok: true, command: ["true"] });
 });
