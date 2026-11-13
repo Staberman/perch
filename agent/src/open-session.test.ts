@@ -120,3 +120,31 @@ test("a closed background session still resumes, and an interactive one still fo
   const interactive = await planOpen(ID, { liveDir, desktopDir, ttyOf: async () => "ttys003", kind: "interactive" });
   expect(interactive.ok && interactive.command[3]).toBe("/dev/ttys003");
 });
+
+test("a named background session looks for its existing Terminal tab before attaching", async () => {
+  const name = `it's "odd" $(touch pwned)`;
+  const plan = await planOpen(ID, { liveDir, desktopDir, kind: "background", name });
+  if (!plan.ok) throw new Error(plan.error);
+  const [bin, flag, script, ...argv] = plan.command;
+  expect([bin, flag]).toEqual(["osascript", "-e"]);
+  expect(argv).toEqual([ID.slice(0, 8), name]); // the name is an argv item, never part of the script
+  expect(script).toContain("custom title");
+  expect(script).toContain("claude attach");
+  for (const part of ["odd", "pwned", ID.slice(0, 8)]) expect(script).not.toContain(part);
+});
+
+test("a background session without a name attaches as before", async () => {
+  for (const name of [undefined, ""]) {
+    const plan = await planOpen(ID, { liveDir, desktopDir, kind: "background", name });
+    if (!plan.ok) throw new Error(plan.error);
+    expect(plan.command.slice(3)).toEqual([ID.slice(0, 8)]);
+    expect(plan.command[2]).not.toContain("custom title");
+  }
+});
+
+test("the name never changes the interactive or closed paths", async () => {
+  const interactive = await planOpen(ID, { liveDir, desktopDir, ttyOf: async () => "ttys003", kind: "interactive", name: "x" });
+  expect(interactive.ok && interactive.command.slice(3)).toEqual(["/dev/ttys003"]);
+  const closed = await planOpen(CLOSED, { liveDir, desktopDir, kind: "background", name: "x" });
+  expect(closed.ok && closed.command.slice(3)).toEqual([homedir(), CLOSED]);
+});

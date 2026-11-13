@@ -4,7 +4,8 @@
  *   `claude://code/continue?session=local_…`; the app restarts the session if needed.
  * - Unknown to the app and closed: `claude --desktop --resume <id>` (documented, CLI ≥ 2.1.285).
  *   Without the desktop app: `claude --resume <id>` in a new Terminal.app tab, in the session's folder.
- * - A live background session (`claude --bg`) has no Terminal tab: `claude attach` in a new tab.
+ * - A live background session (`claude --bg`): focuses a Terminal tab already titled with its name,
+ *   else `claude attach` in a new tab.
  * - Running in a terminal: brings the Terminal.app tab on its tty to the front. Without a tty it is
  *   refused, since resuming it would start a second process on the same conversation.
  */
@@ -58,11 +59,11 @@ end if`;
 // that builds the command from argv through `quoted form of`; the values never reach this source.
 // A Terminal that isn't running opens its own window at launch: the command runs there rather
 // than in a second window.
-const inTerminal = (expression: string) => `on run argv
+const inTerminal = (expression: string, beforeOpening = "") => `on run argv
 	set command to ${expression}
 	if application "Terminal" is running then
 		tell application "Terminal"
-			do script command
+${beforeOpening}			do script command
 			activate
 		end tell
 	else
@@ -84,6 +85,48 @@ const RESUME_IN_TERMINAL = inTerminal(
 
 // Attaches to a background session: argv is its id.
 const ATTACH_IN_TERMINAL = inTerminal(`"claude attach " & quoted form of (item 1 of argv)`);
+
+// Same, but first looks for a tab that already shows the session. Claude Code titles its tabs
+// "<status glyph> <session name>", so a tab matches when its custom title is the name (item 2 of
+// argv) or the name after the first two characters. A matching tab (the last one found) is brought to the front and
+// nothing is opened (several usually mean duplicates of this session); none falls through to the attach. The `try` skips
+// windows without tabs, which fail with -1728 when asked for them.
+const FOCUS_OR_ATTACH_IN_TERMINAL = inTerminal(
+  `"claude attach " & quoted form of (item 1 of argv)`,
+  `			set wanted to item 2 of argv
+			set matchCount to 0
+			set matchWindow to missing value
+			set matchTab to missing value
+			repeat with w in windows
+				set windowTabs to {}
+				try
+					set windowTabs to tabs of w
+				end try
+				repeat with t in windowTabs
+					set tabTitle to ""
+					try
+						set tabTitle to custom title of t
+					end try
+					set isMatch to (tabTitle is wanted)
+					if not isMatch and (length of tabTitle) > 2 then
+						if character 2 of tabTitle is " " and (text 3 thru -1 of tabTitle) is wanted then set isMatch to true
+					end if
+					if isMatch then
+						set matchCount to matchCount + 1
+						set matchWindow to w
+						set matchTab to t
+					end if
+				end repeat
+			end repeat
+			if matchCount > 0 then
+				set miniaturized of matchWindow to false
+				set selected of matchTab to true
+				set index of matchWindow to 1
+				activate
+				return "focused"
+			end if
+`,
+);
 
 /** How `claude agents`, `claude attach` and `claude stop` name a background session: the first 8 characters of its id. */
 export const backgroundId = (sessionId: string) => sessionId.slice(0, 8);
@@ -158,6 +201,7 @@ export async function planOpen(
     desktopDir = DESKTOP_SESSIONS_DIR,
     ttyOf = processTty,
     kind,
+    name,
   }: {
     cwd?: string;
     liveDir?: string;
@@ -165,6 +209,8 @@ export async function planOpen(
     ttyOf?: (pid: number) => Promise<string | undefined>;
     /** What `claude agents` says the session is, if known. */
     kind?: string;
+    /** The session's name, which Claude Code also uses as its Terminal tab title. */
+    name?: string;
   } = {},
 ): Promise<OpenResult> {
   if (!isSessionId(sessionId)) return { ok: false, error: "invalid session id" };
@@ -175,8 +221,15 @@ export async function planOpen(
   }
   const live = await findLive(sessionId, liveDir);
   if (live) {
-    // Background sessions run in a pty the Claude daemon owns: no Terminal tab to focus.
-    if (kind === "background") return { ok: true, command: ["osascript", "-e", ATTACH_IN_TERMINAL, backgroundId(sessionId)] };
+    // Background sessions run in a pty the Claude daemon owns: no tty to focus. A tab may still show
+    // them (a plain client), found by title; otherwise attach in a new one.
+    if (kind === "background") {
+      const id = backgroundId(sessionId);
+      return {
+        ok: true,
+        command: name ? ["osascript", "-e", FOCUS_OR_ATTACH_IN_TERMINAL, id, name] : ["osascript", "-e", ATTACH_IN_TERMINAL, id],
+      };
+    }
     const tty = await ttyOf(live.pid);
     if (tty && TTY.test(tty)) return { ok: true, command: ["osascript", "-e", FOCUS_TERMINAL_TAB, `/dev/${tty}`] };
     return { ok: false, error: `running outside the desktop app (${live.entrypoint}, pid ${live.pid}): open it in its terminal` };
@@ -186,8 +239,8 @@ export async function planOpen(
   return { ok: true, command: ["osascript", "-e", RESUME_IN_TERMINAL, folder, sessionId] };
 }
 
-export async function openSession(sessionId: string, cwd?: string, kind?: string): Promise<OpenResult> {
-  const plan = await planOpen(sessionId, { cwd, kind });
+export async function openSession(sessionId: string, cwd?: string, kind?: string, name?: string): Promise<OpenResult> {
+  const plan = await planOpen(sessionId, { cwd, kind, name });
   return plan.ok ? run(plan.command) : plan;
 }
 
