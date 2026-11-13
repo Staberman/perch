@@ -9,10 +9,18 @@ public enum ChimeSound: Equatable, Sendable {
 /// Decides when a session earns a chime and which one: "done" for a live transition from working
 /// or compacting to done, "waiting" for a transition into needs_permission or needs_input from any
 /// other state. Each kind needs its own toggle on, the chimes share one burst window, and neither
-/// plays while the user is already looking at the session.
+/// plays while the user is already looking at the session (it is focused and Terminal or the Claude desktop app is in front).
 public struct SessionChime: Sendable {
     /// Sessions changing within this window of a chime share it.
     public static let burst: TimeInterval = 1
+
+    /// Apps where the user reads a session: Terminal for CLI sessions, the Claude desktop app for its own.
+    private static let sessionApps: Set<String> = ["com.apple.Terminal", "com.anthropic.claudefordesktop"]
+
+    /// Whether the frontmost app (by bundle identifier) is one where the focused session is on screen.
+    public static func isSessionApp(_ bundleIdentifier: String?) -> Bool {
+        bundleIdentifier.map(sessionApps.contains) ?? false
+    }
 
     private var lastChime: Date?
 
@@ -23,7 +31,7 @@ public struct SessionChime: Sendable {
         for message: ServerMessage,
         previous: PanelSession?,
         focusedId: String?,
-        terminalFrontmost: Bool,
+        sessionAppFrontmost: Bool,
         soundWhenDone: Bool,
         soundWhenWaiting: Bool,
         at now: Date
@@ -39,7 +47,7 @@ public struct SessionChime: Sendable {
         } else {
             return nil
         }
-        if terminalFrontmost && session.id == focusedId { return nil }
+        if sessionAppFrontmost && session.id == focusedId { return nil }
         if let lastChime, now.timeIntervalSince(lastChime) < Self.burst { return nil }
         lastChime = now
         return kind

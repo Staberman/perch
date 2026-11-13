@@ -3,8 +3,8 @@ import TomariCore
 
 func sessionChimeTests() {
     /// The done-chime scenarios, with only the "Sound when done" toggle on.
-    func doneSound(_ chime: inout SessionChime, _ message: ServerMessage, previous: PanelSession?, focusedId: String?, terminalFrontmost: Bool, at date: Date) -> Bool {
-        chime.sound(for: message, previous: previous, focusedId: focusedId, terminalFrontmost: terminalFrontmost, soundWhenDone: true, soundWhenWaiting: false, at: date) == .done
+    func doneSound(_ chime: inout SessionChime, _ message: ServerMessage, previous: PanelSession?, focusedId: String?, sessionAppFrontmost: Bool, at date: Date) -> Bool {
+        chime.sound(for: message, previous: previous, focusedId: focusedId, sessionAppFrontmost: sessionAppFrontmost, soundWhenDone: true, soundWhenWaiting: false, at: date) == .done
     }
 
     func finished(_ session: PanelSession) -> ServerMessage {
@@ -17,28 +17,28 @@ func sessionChimeTests() {
         for state in [SessionState.working, .compacting] {
             var chime = SessionChime()
             let before = session(state: state)
-            expect(doneSound(&chime,  finished(before), previous: before, focusedId: nil, terminalFrontmost: false, at: now), "\(state)")
+            expect(doneSound(&chime,  finished(before), previous: before, focusedId: nil, sessionAppFrontmost: false, at: now), "\(state)")
         }
     }
 
     test("stays quiet for a snapshot, even of finished sessions") {
         var chime = SessionChime()
         let done = session(state: .done)
-        expect(!doneSound(&chime,  .snapshot(sessions: [done], focusedId: nil), previous: nil, focusedId: nil, terminalFrontmost: false, at: now))
+        expect(!doneSound(&chime,  .snapshot(sessions: [done], focusedId: nil), previous: nil, focusedId: nil, sessionAppFrontmost: false, at: now))
     }
 
     test("stays quiet for a session that was already done or unknown") {
         var chime = SessionChime()
         let done = session(state: .done)
-        expect(!doneSound(&chime,  .session(done), previous: done, focusedId: nil, terminalFrontmost: false, at: now), "done to done")
-        expect(!doneSound(&chime,  .session(done), previous: nil, focusedId: nil, terminalFrontmost: false, at: now), "new session")
+        expect(!doneSound(&chime,  .session(done), previous: done, focusedId: nil, sessionAppFrontmost: false, at: now), "done to done")
+        expect(!doneSound(&chime,  .session(done), previous: nil, focusedId: nil, sessionAppFrontmost: false, at: now), "new session")
     }
 
     test("stays quiet for a transition into done from a non-active state") {
         for state in [SessionState.idle, .needsInput, .needsPermission, .error, .ended] {
             var chime = SessionChime()
             let before = session(state: state)
-            expect(!doneSound(&chime,  finished(before), previous: before, focusedId: nil, terminalFrontmost: false, at: now), "\(state)")
+            expect(!doneSound(&chime,  finished(before), previous: before, focusedId: nil, sessionAppFrontmost: false, at: now), "\(state)")
         }
     }
 
@@ -47,25 +47,25 @@ func sessionChimeTests() {
         let before = session(state: .working)
         var next = before
         next.state = .needsInput
-        expect(!doneSound(&chime,  .session(next), previous: before, focusedId: nil, terminalFrontmost: false, at: now))
-        expect(!doneSound(&chime,  .focus(id: before.id), previous: before, focusedId: before.id, terminalFrontmost: false, at: now))
+        expect(!doneSound(&chime,  .session(next), previous: before, focusedId: nil, sessionAppFrontmost: false, at: now))
+        expect(!doneSound(&chime,  .focus(id: before.id), previous: before, focusedId: before.id, sessionAppFrontmost: false, at: now))
     }
 
     test("a burst of finishes chimes once, then again after the window") {
         var chime = SessionChime()
         let a = session(state: .working), b = session(state: .working), c = session(state: .working)
-        expect(doneSound(&chime,  finished(a), previous: a, focusedId: nil, terminalFrontmost: false, at: now))
-        expect(!doneSound(&chime,  finished(b), previous: b, focusedId: nil, terminalFrontmost: false, at: now + 0.5))
-        expect(doneSound(&chime,  finished(c), previous: c, focusedId: nil, terminalFrontmost: false, at: now + 1.5))
+        expect(doneSound(&chime,  finished(a), previous: a, focusedId: nil, sessionAppFrontmost: false, at: now))
+        expect(!doneSound(&chime,  finished(b), previous: b, focusedId: nil, sessionAppFrontmost: false, at: now + 0.5))
+        expect(doneSound(&chime,  finished(c), previous: c, focusedId: nil, sessionAppFrontmost: false, at: now + 1.5))
     }
 
     test("skips the focused session while Terminal is in front, without using up the burst") {
         var chime = SessionChime()
         let a = session(state: .working), b = session(state: .working)
-        expect(!doneSound(&chime,  finished(a), previous: a, focusedId: a.id, terminalFrontmost: true, at: now))
-        expect(doneSound(&chime,  finished(b), previous: b, focusedId: a.id, terminalFrontmost: true, at: now + 0.1), "another session")
+        expect(!doneSound(&chime,  finished(a), previous: a, focusedId: a.id, sessionAppFrontmost: true, at: now))
+        expect(doneSound(&chime,  finished(b), previous: b, focusedId: a.id, sessionAppFrontmost: true, at: now + 0.1), "another session")
         var other = SessionChime()
-        expect(doneSound(&other,  finished(a), previous: a, focusedId: a.id, terminalFrontmost: false, at: now), "focused but Terminal not in front")
+        expect(doneSound(&other,  finished(a), previous: a, focusedId: a.id, sessionAppFrontmost: false, at: now), "focused but Terminal not in front")
     }
 
     // Waiting chime.
@@ -74,8 +74,8 @@ func sessionChimeTests() {
         next.state = state
         return .session(next)
     }
-    func waitingSound(_ chime: inout SessionChime, _ message: ServerMessage, previous: PanelSession?, focusedId: String? = nil, terminalFrontmost: Bool = false, done: Bool = false, waiting: Bool = true, at date: Date = now) -> ChimeSound? {
-        chime.sound(for: message, previous: previous, focusedId: focusedId, terminalFrontmost: terminalFrontmost, soundWhenDone: done, soundWhenWaiting: waiting, at: date)
+    func waitingSound(_ chime: inout SessionChime, _ message: ServerMessage, previous: PanelSession?, focusedId: String? = nil, sessionAppFrontmost: Bool = false, done: Bool = false, waiting: Bool = true, at date: Date = now) -> ChimeSound? {
+        chime.sound(for: message, previous: previous, focusedId: focusedId, sessionAppFrontmost: sessionAppFrontmost, soundWhenDone: done, soundWhenWaiting: waiting, at: date)
     }
 
     test("chimes as waiting when a session starts needing permission or input") {
@@ -122,12 +122,20 @@ func sessionChimeTests() {
         expectEqual(waitingSound(&chime, entered(.needsPermission, c), previous: c, done: true, waiting: true, at: now + 1.5), .waiting)
     }
 
-    test("skips the focused waiting session while Terminal is in front") {
+    test("skips the focused waiting session while its app is in front") {
         let a = session(state: .working), b = session(state: .working)
         var chime = SessionChime()
-        expect(waitingSound(&chime, entered(.needsInput, a), previous: a, focusedId: a.id, terminalFrontmost: true) == nil, "focused")
-        expectEqual(waitingSound(&chime, entered(.needsInput, b), previous: b, focusedId: a.id, terminalFrontmost: true, at: now + 0.1), .waiting)
+        expect(waitingSound(&chime, entered(.needsInput, a), previous: a, focusedId: a.id, sessionAppFrontmost: true) == nil, "focused")
+        expectEqual(waitingSound(&chime, entered(.needsInput, b), previous: b, focusedId: a.id, sessionAppFrontmost: true, at: now + 0.1), .waiting)
         var other = SessionChime()
-        expectEqual(waitingSound(&other, entered(.needsInput, a), previous: a, focusedId: a.id, terminalFrontmost: false), .waiting)
+        expectEqual(waitingSound(&other, entered(.needsInput, a), previous: a, focusedId: a.id, sessionAppFrontmost: false), .waiting)
+    }
+
+    test("Terminal and the Claude desktop app are where the user reads a session") {
+        expect(SessionChime.isSessionApp("com.apple.Terminal"), "Terminal")
+        expect(SessionChime.isSessionApp("com.anthropic.claudefordesktop"), "Claude desktop app")
+        expect(!SessionChime.isSessionApp("com.anthropic.claude-code"), "the CLI's own id is not an app window")
+        expect(!SessionChime.isSessionApp("com.apple.Safari"), "another app")
+        expect(!SessionChime.isSessionApp(nil), "no frontmost app")
     }
 }
