@@ -47,6 +47,9 @@ final class MenuBar: NSObject, NSMenuDelegate {
         let sound = entry("Sound when done", #selector(toggleSound))
         sound.state = Preferences.soundWhenDone ? .on : .off
         menu.addItem(sound)
+        let waitingSound = entry("Sound when waiting for you", #selector(toggleWaitingSound))
+        waitingSound.state = Preferences.soundWhenWaiting ? .on : .off
+        menu.addItem(waitingSound)
 
         // Retried here so the shortcut recovers once whoever held it lets go.
         if Preferences.jumpToWaiting { jumpKey.register() }
@@ -82,6 +85,10 @@ final class MenuBar: NSObject, NSMenuDelegate {
 
     @objc private func toggleSound() {
         Preferences.soundWhenDone.toggle()
+    }
+
+    @objc private func toggleWaitingSound() {
+        Preferences.soundWhenWaiting.toggle()
     }
 
     @objc private func toggleJump() {

@@ -227,6 +227,12 @@ enum Preferences {
         set { store.set(newValue, forKey: "soundWhenDone") }
     }
 
+    /// Chime when a session starts waiting for the user; off until the user turns it on.
+    static var soundWhenWaiting: Bool {
+        get { store.bool(forKey: "soundWhenWaiting") }
+        set { store.set(newValue, forKey: "soundWhenWaiting") }
+    }
+
     /// The global ⌃⌥J shortcut that jumps to a waiting session; off until the user turns it on.
     static var jumpToWaiting: Bool {
         get { store.bool(forKey: "jumpToWaiting") }

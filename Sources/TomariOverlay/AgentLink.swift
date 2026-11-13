@@ -28,9 +28,9 @@ final class AgentLink {
     @ObservationIgnored private var lastSent: ClientMessage?
     @ObservationIgnored private var libraryReply: (([LibraryEntry]) -> Void)?
     @ObservationIgnored private var noticeExpiry: Task<Void, Never>?
-    @ObservationIgnored private var doneChime = DoneChime()
     @ObservationIgnored private var frontReporter = FrontAppReporter()
     @ObservationIgnored private var frontObserver: NSObjectProtocol?
+    @ObservationIgnored private var sessionChime = SessionChime()
 
     private static let minRetry: Duration = .seconds(1)
     private static let maxRetry: Duration = .seconds(10)
@@ -108,18 +108,24 @@ final class AgentLink {
                 libraryReply?(entries)
                 libraryReply = nil
             default:
-                chimeIfFinished(parsed)
+                chimeIfNeeded(parsed)
                 list.apply(parsed)
             }
         }
     }
 
     /// Called before `parsed` is applied, so the list still holds the session as it was.
-    private func chimeIfFinished(_ parsed: ServerMessage) {
-        guard Preferences.soundWhenDone, case .session(let session) = parsed else { return }
+    private func chimeIfNeeded(_ parsed: ServerMessage) {
+        guard case .session(let session) = parsed, Preferences.soundWhenDone || Preferences.soundWhenWaiting else { return }
         let terminalFront = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.Terminal"
-        if doneChime.shouldChime(for: parsed, previous: list.sessions[session.id], focusedId: list.focusedId, terminalFrontmost: terminalFront, at: Date()) {
-            NSSound(named: "Glass")?.play()
+        let sound = sessionChime.sound(
+            for: parsed, previous: list.sessions[session.id], focusedId: list.focusedId, terminalFrontmost: terminalFront,
+            soundWhenDone: Preferences.soundWhenDone, soundWhenWaiting: Preferences.soundWhenWaiting, at: Date()
+        )
+        switch sound {
+        case .done?: NSSound(named: "Glass")?.play()
+        case .waiting?: NSSound(named: "Ping")?.play()
+        case nil: break
         }
     }
 
