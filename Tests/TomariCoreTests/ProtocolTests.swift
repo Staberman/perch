@@ -96,6 +96,16 @@ func protocolTests() {
         expectEqual(ClientMessage.terminal.sessionId, nil)
     }
 
+    test("decodes the session kind, and a message without one") {
+        let bg = sessionJSON.replacingOccurrences(of: #""icon":"#, with: #""kind":"background","icon":"#)
+        guard case .session(let a)? = ServerMessage.parse(#"{"type":"session","session":\#(bg)}"#),
+              case .session(let b)? = ServerMessage.parse(#"{"type":"session","session":\#(sessionJSON)}"#) else {
+            return expect(false, "not a session message")
+        }
+        expectEqual(a.kind, "background")
+        expectEqual(b.kind, nil)
+    }
+
     test("the color palette matches the Pi panel's and includes the default") {
         expectEqual(SessionIcon.palette.map(\.color), ["#ff6b1a", "#d97757", "#ffd23f", "#4cd964", "#3ccfe6", "#4f7cff", "#a66cff", "#ff5fa2", "#e8e8e8"])
         expect(SessionIcon.palette.contains { $0.color == SessionIcon.default.color })

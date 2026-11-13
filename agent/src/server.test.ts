@@ -18,22 +18,24 @@ const DESKTOP: DesktopSession[] = [
 ];
 
 let servers: ReturnType<typeof startServers>;
-let opened: [id: string, cwd: string | undefined][];
+let hub: SessionHub;
+let opened: [id: string, cwd: string | undefined, kind: string | undefined][];
 let desktopSessions: () => Promise<DesktopSession[]>;
 let terminal: () => Promise<OpenResult>;
 
 beforeEach(() => {
   opened = [];
+  hub = new SessionHub(new Store());
   desktopSessions = async () => DESKTOP;
   terminal = async () => ({ ok: true, command: ["fake-terminal"] });
   servers = startServers({
-    hub: new SessionHub(new Store()),
+    hub,
     token: TOKEN,
     hookPort: 0, // 0 = any free port
     panelPort: 0,
     panelHost: "127.0.0.1",
-    open: async (id, cwd) => {
-      opened.push([id, cwd]);
+    open: async (id, cwd, kind) => {
+      opened.push([id, cwd, kind]);
       return { ok: true, command: ["fake-open", id] };
     },
     desktopSessions: () => desktopSessions(),
@@ -113,7 +115,7 @@ test("pin, icon and open commands; anything else is refused", async () => {
 
   ws.send(JSON.stringify({ type: "open", id: ID }));
   await waitFor(() => opened.length === 1);
-  expect(opened).toEqual([[ID, "/tmp/demo"]]); // where it last ran, for resuming it in a terminal
+  expect(opened).toEqual([[ID, "/tmp/demo", undefined]]); // where it last ran, for resuming it in a terminal
   expect(await next()).toEqual({ type: "focus", id: ID });
 
   ws.send(JSON.stringify({ type: "open", id: "11111111-1111-1111-1111-111111111111" }));
@@ -235,4 +237,16 @@ test("planOpen: deep link for desktop sessions (running or not), refuse terminal
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+const BG = "4c3f6979-6d4f-4add-8de8-b71ea72d0f6e";
+
+test("opening a background session tells the opener its kind", async () => {
+  hub.handleAgents([{ sessionId: BG, cwd: "/tmp/bg", kind: "background", status: "idle", startedAt: 0 }]);
+  const { ws, next } = await connect();
+  await next(); // snapshot
+  ws.send(JSON.stringify({ type: "open", id: BG }));
+  await waitFor(() => opened.length === 1);
+  expect(opened).toEqual([[BG, "/tmp/bg", "background"]]);
+  ws.close();
 });

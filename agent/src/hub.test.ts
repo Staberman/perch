@@ -280,6 +280,18 @@ describe("SessionHub", () => {
   });
 });
 
+describe("background sessions", () => {
+  test("the panel session carries the kind the poll reported", () => {
+    const { hub, changes } = setup();
+    hub.handleHook(ev(A, "UserPromptSubmit"));
+    expect(hub.get(A)!.kind).toBeUndefined();
+    changes.length = 0;
+    hub.handleAgents([{ sessionId: A, cwd: "/Users/dev/bg", kind: "background", status: "busy", startedAt: 0 }]);
+    expect(hub.get(A)!.kind).toBe("background");
+    expect(changes).toMatchObject([{ type: "session", session: { id: A, kind: "background" } }]);
+  });
+});
+
 describe("parseClientMessage", () => {
   test("accepts the whitelisted commands", () => {
     expect(parseClientMessage(JSON.stringify({ type: "library" }))).toEqual({ type: "library" });

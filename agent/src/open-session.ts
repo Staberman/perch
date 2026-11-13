@@ -4,6 +4,7 @@
  *   `claude://code/continue?session=local_…`; the app restarts the session if needed.
  * - Unknown to the app and closed: `claude --desktop --resume <id>` (documented, CLI ≥ 2.1.285).
  *   Without the desktop app: `claude --resume <id>` in a new Terminal.app tab, in the session's folder.
+ * - A live background session (`claude --bg`) has no Terminal tab: `claude attach` in a new tab.
  * - Running in a terminal: brings the Terminal.app tab on its tty to the front. Without a tty it is
  *   refused, since resuming it would start a second process on the same conversation.
  */
@@ -53,11 +54,12 @@ else
 	tell application "Terminal" to activate
 end if`;
 
-// Resumes a closed session the way NEW_TERMINAL_TAB opens a shell. The folder and id arrive as argv
-// and reach the shell through `quoted form of`, never through this source. A Terminal that isn't
-// running opens its own window at launch: the command runs there rather than in a second window.
-const RESUME_IN_TERMINAL = `on run argv
-	set command to "cd " & quoted form of (item 1 of argv) & " && claude --resume " & quoted form of (item 2 of argv)
+// Runs a command in Terminal the way NEW_TERMINAL_TAB opens a shell. `expression` is fixed source
+// that builds the command from argv through `quoted form of`; the values never reach this source.
+// A Terminal that isn't running opens its own window at launch: the command runs there rather
+// than in a second window.
+const inTerminal = (expression: string) => `on run argv
+	set command to ${expression}
 	if application "Terminal" is running then
 		tell application "Terminal"
 			do script command
@@ -74,6 +76,17 @@ const RESUME_IN_TERMINAL = `on run argv
 		end tell
 	end if
 end run`;
+
+// Resumes a closed session, in its folder: argv is the folder, then the session id.
+const RESUME_IN_TERMINAL = inTerminal(
+  `"cd " & quoted form of (item 1 of argv) & " && claude --resume " & quoted form of (item 2 of argv)`,
+);
+
+// Attaches to a background session: argv is its id.
+const ATTACH_IN_TERMINAL = inTerminal(`"claude attach " & quoted form of (item 1 of argv)`);
+
+/** How `claude agents`, `claude attach` and `claude stop` name a background session: the first 8 characters of its id. */
+export const backgroundId = (sessionId: string) => sessionId.slice(0, 8);
 
 export type OpenResult = { ok: true; command: string[] } | { ok: false; error: string };
 
@@ -144,7 +157,15 @@ export async function planOpen(
     liveDir = LIVE_DIR,
     desktopDir = DESKTOP_SESSIONS_DIR,
     ttyOf = processTty,
-  }: { cwd?: string; liveDir?: string; desktopDir?: string; ttyOf?: (pid: number) => Promise<string | undefined> } = {},
+    kind,
+  }: {
+    cwd?: string;
+    liveDir?: string;
+    desktopDir?: string;
+    ttyOf?: (pid: number) => Promise<string | undefined>;
+    /** What `claude agents` says the session is, if known. */
+    kind?: string;
+  } = {},
 ): Promise<OpenResult> {
   if (!isSessionId(sessionId)) return { ok: false, error: "invalid session id" };
 
@@ -154,6 +175,8 @@ export async function planOpen(
   }
   const live = await findLive(sessionId, liveDir);
   if (live) {
+    // Background sessions run in a pty the Claude daemon owns: no Terminal tab to focus.
+    if (kind === "background") return { ok: true, command: ["osascript", "-e", ATTACH_IN_TERMINAL, backgroundId(sessionId)] };
     const tty = await ttyOf(live.pid);
     if (tty && TTY.test(tty)) return { ok: true, command: ["osascript", "-e", FOCUS_TERMINAL_TAB, `/dev/${tty}`] };
     return { ok: false, error: `running outside the desktop app (${live.entrypoint}, pid ${live.pid}): open it in its terminal` };
@@ -163,8 +186,8 @@ export async function planOpen(
   return { ok: true, command: ["osascript", "-e", RESUME_IN_TERMINAL, folder, sessionId] };
 }
 
-export async function openSession(sessionId: string, cwd?: string): Promise<OpenResult> {
-  const plan = await planOpen(sessionId, { cwd });
+export async function openSession(sessionId: string, cwd?: string, kind?: string): Promise<OpenResult> {
+  const plan = await planOpen(sessionId, { cwd, kind });
   return plan.ok ? run(plan.command) : plan;
 }
 

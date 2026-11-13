@@ -52,6 +52,11 @@ export interface PanelSession {
   /** Order among pinned sessions; null when not pinned. */
   position: number | null;
   icon: SessionIcon;
+  /**
+   * From `claude agents`: "interactive" (a terminal) or "background" (`--bg`, run by the Claude daemon).
+   * Absent until the poll has seen the session. Clients must treat other values as unknown.
+   */
+  kind?: "interactive" | "background" | (string & {});
 }
 
 /** A desktop-app session the panel can pin, running or not. */

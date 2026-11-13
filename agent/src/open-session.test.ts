@@ -99,3 +99,24 @@ test("a resumed session maps to its running pid, not the dead one left behind", 
   writeFileSync(`${liveDir}/0.json`, JSON.stringify({ pid: 2_000_000_000, sessionId: ID }));
   expect((await sessionPids(liveDir)).get(ID)).toBe(process.pid);
 });
+
+test("a live background session attaches in a new Terminal tab instead of focusing a tty", async () => {
+  const ttyOf = async () => {
+    throw new Error("must not look for a tty");
+  };
+  const plan = await planOpen(ID, { liveDir, desktopDir, ttyOf, kind: "background" });
+  if (!plan.ok) throw new Error(plan.error);
+  const [bin, flag, script, ...argv] = plan.command;
+  expect([bin, flag]).toEqual(["osascript", "-e"]);
+  expect(argv).toEqual([ID.slice(0, 8)]); // `claude agents` lists background sessions by their short id
+  expect(script).toContain("claude attach");
+  expect(script).toContain("quoted form of");
+  expect(script).not.toContain(ID.slice(0, 8));
+});
+
+test("a closed background session still resumes, and an interactive one still focuses its tab", async () => {
+  const closed = await planOpen(CLOSED, { liveDir, desktopDir, kind: "background" });
+  expect(closed.ok && closed.command.slice(3)).toEqual([homedir(), CLOSED]);
+  const interactive = await planOpen(ID, { liveDir, desktopDir, ttyOf: async () => "ttys003", kind: "interactive" });
+  expect(interactive.ok && interactive.command[3]).toBe("/dev/ttys003");
+});

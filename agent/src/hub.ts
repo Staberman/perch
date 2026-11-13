@@ -14,7 +14,7 @@ export type HubChange =
 export type HubListener = (change: HubChange) => void;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const VISIBLE: (keyof SessionRecord)[] = ["name", "cwd", "state", "activity", "live", "stateSince"];
+const VISIBLE: (keyof SessionRecord)[] = ["name", "cwd", "state", "activity", "live", "stateSince", "kind"];
 
 export class SessionHub {
   private records = new Map<string, SessionRecord>();
@@ -254,6 +254,7 @@ export class SessionHub {
       pinned: pin !== undefined,
       position: pin?.position ?? null,
       icon: pin?.icon ?? DEFAULT_ICON,
+      ...(rec.kind ? { kind: rec.kind } : {}),
     };
   }
 }

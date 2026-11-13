@@ -50,10 +50,12 @@ public struct PanelSession: Equatable, Identifiable, Sendable {
     public var pinned: Bool
     public var position: Int?
     public var icon: SessionIcon
+    /// "interactive" or "background" (run by the Claude daemon, no terminal of its own); nil until the agent knows.
+    public var kind: String?
 
     public init(
         id: String, name: String, cwd: String, state: SessionState, activity: String?, live: Bool,
-        stateSince: Date, pinned: Bool, position: Int?, icon: SessionIcon
+        stateSince: Date, pinned: Bool, position: Int?, icon: SessionIcon, kind: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -65,12 +67,13 @@ public struct PanelSession: Equatable, Identifiable, Sendable {
         self.pinned = pinned
         self.position = position
         self.icon = icon
+        self.kind = kind
     }
 }
 
 extension PanelSession: Decodable {
     private enum Keys: String, CodingKey {
-        case id, name, cwd, state, activity, live, stateSince, pinned, position, icon
+        case id, name, cwd, state, activity, live, stateSince, pinned, position, icon, kind
     }
 
     public init(from decoder: Decoder) throws {
@@ -86,7 +89,8 @@ extension PanelSession: Decodable {
             stateSince: Date(timeIntervalSince1970: stateSinceEpochMs / 1000),
             pinned: try c.decode(Bool.self, forKey: .pinned),
             position: try c.decodeIfPresent(Int.self, forKey: .position),
-            icon: try c.decode(SessionIcon.self, forKey: .icon)
+            icon: try c.decode(SessionIcon.self, forKey: .icon),
+            kind: try? c.decodeIfPresent(String.self, forKey: .kind)
         )
     }
 }
