@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { planOpen, type OpenResult } from "./open-session.ts";
+import { planOpen, sessionPids, type OpenResult } from "./open-session.ts";
 
 const ID = "0603472f-b7c5-4dae-b7a1-142468264b30";
 const CLOSED = "22222222-2222-4222-8222-222222222222"; // not running
@@ -68,6 +68,17 @@ test("without a known folder it resumes in the home folder", async () => {
   expect(plan.ok && plan.command.slice(3)).toEqual([homedir(), CLOSED]);
 });
 
+test("with no folder from the hub, a closed session resumes where the CLI last recorded it", async () => {
+  writeFileSync(`${liveDir}/2.json`, JSON.stringify({ pid: 2_000_000_000, sessionId: CLOSED, cwd: "/Users/dev/recorded" }));
+  for (const cwd of [undefined, ""]) {
+    const plan = await planOpen(CLOSED, { liveDir, desktopDir, cwd });
+    expect(plan.ok && plan.command.slice(3)).toEqual(["/Users/dev/recorded", CLOSED]);
+  }
+  // The hub's folder, when it has one, still wins.
+  const plan = await planOpen(CLOSED, { liveDir, desktopDir, cwd: "/Users/dev/hub" });
+  expect(plan.ok && plan.command.slice(3)).toEqual(["/Users/dev/hub", CLOSED]);
+});
+
 test("an odd folder name reaches the script only as argv", async () => {
   const cwd = `/tmp/it's "odd" $(touch pwned); rm -rf ~`;
   const plan = await planOpen(CLOSED, { liveDir, desktopDir, cwd });
@@ -82,4 +93,9 @@ test("with the desktop app, a closed session still opens there", async () => {
     ok: true,
     command: ["claude", "--desktop", "--resume", CLOSED],
   });
+});
+
+test("a resumed session maps to its running pid, not the dead one left behind", async () => {
+  writeFileSync(`${liveDir}/0.json`, JSON.stringify({ pid: 2_000_000_000, sessionId: ID }));
+  expect((await sessionPids(liveDir)).get(ID)).toBe(process.pid);
 });

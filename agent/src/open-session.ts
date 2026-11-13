@@ -80,10 +80,11 @@ export type OpenResult = { ok: true; command: string[] } | { ok: false; error: s
 interface LiveSession {
   pid: number;
   sessionId: string;
+  cwd?: string;
   entrypoint?: string;
 }
 
-function isAlive(pid: number) {
+export function isAlive(pid: number) {
   try {
     process.kill(pid, 0); // signal 0 only checks that the process exists
     return true;
@@ -92,13 +93,36 @@ function isAlive(pid: number) {
   }
 }
 
-/** A running Claude Code process for this session, from the CLI's internal ~/.claude/sessions/<pid>.json. */
-async function findLive(id: string, dir: string): Promise<LiveSession | undefined> {
+/** Every ~/.claude/sessions/<pid>.json the CLI left behind, running or not. */
+async function readSessionFiles(dir: string): Promise<LiveSession[]> {
+  const infos: LiveSession[] = [];
   for (const name of await readdir(dir).catch(() => [])) {
     if (!name.endsWith(".json")) continue;
     const info: LiveSession | null = await Bun.file(`${dir}/${name}`).json().catch(() => null);
-    if (info?.sessionId === id && isAlive(info.pid)) return info;
+    if (info && typeof info.pid === "number" && typeof info.sessionId === "string") infos.push(info);
   }
+  return infos;
+}
+
+/** Session id → pid of the CLI process, as the CLI recorded it; the process may be gone. */
+export async function sessionPids(dir = LIVE_DIR): Promise<Map<string, number>> {
+  const pids = new Map<string, number>();
+  // A resumed session leaves its old file behind: a running pid beats a dead one.
+  for (const info of await readSessionFiles(dir)) {
+    const known = pids.get(info.sessionId);
+    if (known === undefined || !isAlive(known)) pids.set(info.sessionId, info.pid);
+  }
+  return pids;
+}
+
+/** A running Claude Code process for this session, from the CLI's internal ~/.claude/sessions/<pid>.json. */
+async function findLive(id: string, dir: string): Promise<LiveSession | undefined> {
+  return (await readSessionFiles(dir)).find((info) => info.sessionId === id && isAlive(info.pid));
+}
+
+/** The folder the CLI recorded for a session, even after its process exited. */
+async function recordedCwd(id: string, dir: string): Promise<string | undefined> {
+  return (await readSessionFiles(dir)).find((info) => info.sessionId === id && info.cwd)?.cwd;
 }
 
 /** Controlling terminal of a process, like "ttys003" ("??" when it has none). */
@@ -115,7 +139,7 @@ async function processTty(pid: number): Promise<string | undefined> {
 /** Picks the command that would open the session, without running it. `cwd` is where it last ran. */
 export async function planOpen(
   sessionId: string,
-  { cwd = homedir(), liveDir = LIVE_DIR, desktopDir = DESKTOP_SESSIONS_DIR, ttyOf = processTty } = {},
+  { cwd, liveDir = LIVE_DIR, desktopDir = DESKTOP_SESSIONS_DIR, ttyOf = processTty } = {},
 ): Promise<OpenResult> {
   if (!isSessionId(sessionId)) return { ok: false, error: "invalid session id" };
 
@@ -130,7 +154,8 @@ export async function planOpen(
     return { ok: false, error: `running outside the desktop app (${live.entrypoint}, pid ${live.pid}): open it in its terminal` };
   }
   if (hasDesktopApp(desktopDir)) return { ok: true, command: ["claude", "--desktop", "--resume", sessionId] };
-  return { ok: true, command: ["osascript", "-e", RESUME_IN_TERMINAL, cwd, sessionId] };
+  const folder = cwd || (await recordedCwd(sessionId, liveDir)) || desktop?.cwd || homedir();
+  return { ok: true, command: ["osascript", "-e", RESUME_IN_TERMINAL, folder, sessionId] };
 }
 
 export async function openSession(sessionId: string, cwd?: string): Promise<OpenResult> {

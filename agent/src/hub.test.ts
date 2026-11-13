@@ -85,6 +85,25 @@ describe("SessionHub", () => {
     expect(hub.liveEntries().map((s) => s.id)).toEqual([B, A]);
   });
 
+  test("a live session whose process is gone ends, even if no hook or poll said so", () => {
+    const { hub } = setup();
+    hub.handleAgents([{ sessionId: A, cwd: "/x", pid: 111, status: "busy", startedAt: 0 }]);
+    hub.handleHook(ev(B, "UserPromptSubmit")); // seen by hooks only: no pid yet
+    hub.endDead((pid) => pid !== 111, new Map([[B, 222]]));
+    expect(hub.get(A)).toMatchObject({ state: "ended", live: false });
+    expect(hub.get(B)).toMatchObject({ state: "working", live: true });
+
+    hub.endDead((pid) => pid !== 222, new Map([[B, 222]])); // the pid comes from ~/.claude/sessions
+    expect(hub.get(B)).toMatchObject({ state: "ended", live: false });
+  });
+
+  test("a session with no known pid is left alone", () => {
+    const { hub } = setup();
+    hub.handleHook(ev(A, "UserPromptSubmit"));
+    hub.endDead(() => false, new Map());
+    expect(hub.get(A)!.live).toBe(true);
+  });
+
   test("only visible changes are announced", () => {
     const { hub, changes } = setup();
     const tool = { tool_name: "Bash", tool_input: { command: "ls" } };

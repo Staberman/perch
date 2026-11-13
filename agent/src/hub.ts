@@ -83,6 +83,20 @@ export class SessionHub {
     for (const rec of reconcile(this.records, agents, this.now())) this.commit(rec);
   }
 
+  /**
+   * Ends live sessions whose process is gone: a closed tab often skips SessionEnd, and if
+   * `claude agents` fails nothing else would. `pids` fills in sessions the hooks alone have seen.
+   * A session with no known pid is left alone.
+   */
+  endDead(isAlive: (pid: number) => boolean, pids: ReadonlyMap<string, number> = new Map()) {
+    for (const rec of [...this.records.values()]) {
+      const pid = rec.pid ?? pids.get(rec.id);
+      if (rec.live && pid != null && !isAlive(pid)) {
+        this.commit({ ...rec, state: "ended", activity: null, live: false, pid: null, stateSince: this.now() });
+      }
+    }
+  }
+
   /** Starts tracking a session that is not running, e.g. a desktop session about to be pinned. No-op if known. */
   adopt(id: string, name: string | null, cwd: string, since: number) {
     if (this.records.has(id)) return;
