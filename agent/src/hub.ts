@@ -22,6 +22,10 @@ export class SessionHub {
   private listeners = new Set<HubListener>();
   /** Start of each session's first prompt, kept only in memory: it is never written to the store. */
   private prompts = new Map<string, string>();
+  /** Where each session's transcript lives, from the hook payload; in memory only. */
+  private transcripts = new Map<string, string>();
+  /** Sessions whose first prompt was already looked up in the transcript, found or not: each is read once. */
+  private lookedUp = new Set<string>();
   /** The label the panel last saw for each session. */
   private labels = new Map<string, string>();
   /** Session in front in the terminal or desktop app; not persisted. */
@@ -30,6 +34,8 @@ export class SessionHub {
   constructor(
     private store: Store,
     private now: () => number = Date.now,
+    /** Reads a session's first prompt from its transcript; the default finds nothing. */
+    private readPrompt: (sessionId: string, transcriptPath?: string) => Promise<string | null> = async () => null,
   ) {
     for (const rec of store.loadSessions()) this.records.set(rec.id, rec);
     this.pins = store.loadPins();
@@ -72,6 +78,7 @@ export class SessionHub {
   }
 
   handleHook(event: HookEvent) {
+    if (typeof event.transcript_path === "string") this.transcripts.set(event.session_id, event.transcript_path);
     if (event.hook_event_name === "UserPromptSubmit" && typeof event.prompt === "string" && !this.prompts.has(event.session_id)) {
       const snippet = snippetOf(event.prompt);
       if (snippet) this.prompts.set(event.session_id, snippet);
@@ -140,6 +147,8 @@ export class SessionHub {
         this.records.delete(rec.id);
         this.prompts.delete(rec.id);
         this.labels.delete(rec.id);
+        this.transcripts.delete(rec.id);
+        this.lookedUp.delete(rec.id);
         this.store.deleteSession(rec.id);
         this.emit({ type: "removed", id: rec.id });
       }
@@ -175,6 +184,20 @@ export class SessionHub {
     return changed;
   }
 
+  /** Reads the first prompt from the transcript, in the background, for a session that needs a snippet and has none. */
+  private lookUpPrompt(id: string) {
+    if (this.lookedUp.has(id)) return;
+    this.lookedUp.add(id);
+    this.readPrompt(id, this.transcripts.get(id))
+      .then((prompt) => {
+        const snippet = prompt ? snippetOf(prompt) : "";
+        if (!snippet || this.prompts.has(id) || !this.records.has(id)) return; // a prompt seen live wins
+        this.prompts.set(id, snippet);
+        this.announceRelabeled();
+      })
+      .catch(() => {}); // fail soft: the short id stays
+  }
+
   private labelOf(rec: SessionRecord) {
     return this.labels.get(rec.id) ?? this.baseLabel(rec);
   }
@@ -199,6 +222,7 @@ export class SessionHub {
       const base = this.baseLabel(rec);
       const clash = rec.name === null && visible(rec) && (count.get(base) ?? 0) > 1;
       const snippet = this.prompts.get(rec.id);
+      if (clash && !snippet) this.lookUpPrompt(rec.id);
       labels.set(rec.id, clash ? `${base} · ${snippet ?? shortId(rec.id)}` : base);
     }
 

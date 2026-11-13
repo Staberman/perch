@@ -6,13 +6,14 @@ import { SessionHub } from "./hub.ts";
 import { startPoller } from "./poller.ts";
 import { startServers } from "./server.ts";
 import { Store } from "./store.ts";
+import { firstPrompt } from "./transcript.ts";
 import { watchTerminalFocus } from "./terminal-focus.ts";
 
 /** Runs until SIGINT or SIGTERM. `lan` opens the WebSocket to the network, for a claude-panel Pi. */
 export async function runAgent({ lan }: { lan: boolean }) {
   const config = await loadConfig();
   const store = new Store(config.dbPath);
-  const hub = new SessionHub(store);
+  const hub = new SessionHub(store, Date.now, (id, transcriptPath) => firstPrompt(id, { transcriptPath }));
   const servers = startServers({
     hub,
     token: config.token,

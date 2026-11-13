@@ -15,9 +15,9 @@ const ev = (session_id: string, hook_event_name: string, extra: Record<string, u
   ...extra,
 });
 
-function setup(store = new Store(), start = 1_000_000) {
+function setup(store = new Store(), start = 1_000_000, readPrompt?: (id: string, transcriptPath?: string) => Promise<string | null>) {
   let now = start;
-  const hub = new SessionHub(store, () => now);
+  const hub = new SessionHub(store, () => now, readPrompt);
   const changes: HubChange[] = [];
   hub.subscribe((c) => changes.push(c));
   return { hub, store, changes, tick: (ms: number) => (now += ms) };
@@ -45,6 +45,52 @@ describe("SessionHub", () => {
     hub.handleHook(ev(A, "UserPromptSubmit", { prompt: "a later prompt does not rename it" }));
     expect(hub.get(A)!.name).toBe("claude-panel · fix the login redirect…");
     expect(hub.get(B)!.name).toBe("claude-panel · add tests");
+  });
+
+  test("a missing snippet is read from the transcript, lazily, once, and announced when it arrives", async () => {
+    const calls: [string, string | undefined][] = [];
+    const answers: Record<string, string | null> = { [A]: "fix the login redirect loop on Safari", [B]: null };
+    const { hub, changes } = setup(new Store(), 1_000_000, async (id, path) => {
+      calls.push([id, path]);
+      return answers[id] ?? null;
+    });
+    hub.handleHook(ev(A, "SessionStart", { transcript_path: "/Users/dev/.claude/projects/p/a.jsonl" }));
+    expect(calls).toEqual([]); // no clash, nothing to read
+    hub.handleHook(ev(B, "SessionStart"));
+    expect(hub.get(A)!.name).toBe(`claude-panel · ${A.slice(0, 4)}`); // the short id until the read lands
+    await Bun.sleep(10);
+    expect(hub.get(A)!.name).toBe("claude-panel · fix the login redirect…");
+    expect(hub.get(B)!.name).toBe(`claude-panel · ${B.slice(0, 4)}`); // not found: the fallback stays
+    expect(changes.some((c) => c.type === "session" && c.session.id === A && c.session.name.endsWith("redirect…"))).toBe(true);
+    hub.handleHook(ev(A, "Stop"));
+    hub.handleHook(ev(B, "Stop"));
+    await Bun.sleep(10);
+    expect(calls).toEqual([
+      [A, "/Users/dev/.claude/projects/p/a.jsonl"],
+      [B, undefined],
+    ]); // each read once, "not found" included
+  });
+
+  test("a read that fails leaves the short id and does not break hook handling", async () => {
+    const { hub } = setup(new Store(), 1_000_000, async () => {
+      throw new Error("EACCES");
+    });
+    hub.handleHook(ev(A, "SessionStart"));
+    hub.handleHook(ev(B, "SessionStart"));
+    await Bun.sleep(10);
+    expect(hub.get(A)!.name).toBe(`claude-panel · ${A.slice(0, 4)}`);
+  });
+
+  test("a prompt seen by hooks wins over a late transcript read", async () => {
+    const pending: ((v: string) => void)[] = [];
+    const { hub } = setup(new Store(), 1_000_000, () => new Promise((r) => pending.push(r)));
+    hub.handleHook(ev(A, "SessionStart"));
+    hub.handleHook(ev(B, "SessionStart"));
+    hub.handleHook(ev(A, "UserPromptSubmit", { prompt: "live prompt" }));
+    for (const release of pending) release("transcript prompt");
+    await Bun.sleep(10);
+    expect(hub.get(A)!.name).toBe("claude-panel · live prompt");
+    expect(hub.get(B)!.name).toBe("claude-panel · transcript prompt");
   });
 
   test("a lone session, or one with a title, keeps its plain label", () => {
