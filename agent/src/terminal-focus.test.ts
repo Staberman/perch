@@ -37,11 +37,39 @@ test("the session in the front Terminal tab is focused, and only changes are rep
     await Bun.sleep(40); // many more ticks, same tab
     front.tty = "/dev/ttys002";
     await waitFor(() => seen.length === 2);
-    front.tty = ""; // Terminal not in front
-    await waitFor(() => seen.length === 3);
+    expect(seen).toEqual([A, B]);
+  } finally {
+    stop();
+  }
+});
+
+test("the last focused session stays focused while Terminal is not in front or a plain shell is", async () => {
+  const { front, seen, stop } = setup();
+  try {
+    await waitFor(() => seen.length === 1);
+    front.tty = ""; // switched to another app
+    await Bun.sleep(40);
     front.tty = "/dev/ttys099"; // a tab with no Claude session
     await Bun.sleep(40);
-    expect(seen).toEqual([A, B, null]);
+    expect(seen).toEqual([A]);
+    front.tty = "/dev/ttys001"; // back to the same session: nothing new to report
+    await Bun.sleep(40);
+    expect(seen).toEqual([A]);
+  } finally {
+    stop();
+  }
+});
+
+test("focus is cleared when the focused session ends", async () => {
+  const alive = new Set([A]);
+  const { front, seen, stop } = setup({ alive: (id) => alive.has(id) });
+  try {
+    await waitFor(() => seen.length === 1);
+    front.tty = "";
+    alive.delete(A);
+    await waitFor(() => seen.length === 2);
+    await Bun.sleep(40);
+    expect(seen).toEqual([A, null]);
   } finally {
     stop();
   }

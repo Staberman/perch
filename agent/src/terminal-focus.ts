@@ -28,6 +28,8 @@ export interface TerminalFocusOptions {
   run?: () => Promise<string>;
   /** Maps a tty to the live session on it. */
   sessionForTty?: (tty: string) => Promise<string | null>;
+  /** Whether a session is still running; the focus is cleared once the focused one is not. Defaults to always. */
+  alive?: (sessionId: string) => boolean;
   log?: (message: string) => void;
 }
 
@@ -69,7 +71,11 @@ export function ttyResolver({
   };
 }
 
-/** Calls `onFocus` with the session in front in Terminal.app, or null; only when that changes. Returns a stop function. */
+/**
+ * Calls `onFocus` with the session last selected in Terminal.app, only when that changes. Like the desktop
+ * source it is sticky: switching to another app, or to a tab with no Claude session, keeps the last one;
+ * it goes to null only when that session ends. Returns a stop function.
+ */
 export function watchTerminalFocus(
   onFocus: (sessionId: string | null) => void,
   {
@@ -78,11 +84,12 @@ export function watchTerminalFocus(
     enabled = () => true,
     run = runFrontTty,
     sessionForTty = ttyResolver(),
+    alive = () => true,
     log = (message) => console.error(message),
   }: TerminalFocusOptions = {},
 ) {
   let stopped = false;
-  let last: string | null | undefined;
+  let last: string | null = null;
   let failing = false;
 
   (async () => {
@@ -92,9 +99,12 @@ export function watchTerminalFocus(
         try {
           const tty = await run();
           const id = tty ? await sessionForTty(tty) : null;
-          if (id !== last) {
+          if (id && id !== last) {
             last = id;
             onFocus(id);
+          } else if (last && !alive(last)) {
+            last = null;
+            onFocus(null);
           }
           failing = false;
         } catch (error) {

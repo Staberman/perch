@@ -23,7 +23,10 @@ export async function runAgent({ lan }: { lan: boolean }) {
   const stopPoller = startPoller(hub);
   const stopFocus = watchDesktopFocus((id) => hub.setFocused(id));
   // Terminal sessions have no desktop log to tail; with the desktop app present, its log stays the only source.
-  const stopTerminalFocus = watchTerminalFocus((id) => hub.setFocused(id), { enabled: () => !desktopPresent() });
+  const stopTerminalFocus = watchTerminalFocus((id) => hub.setFocused(id), {
+    enabled: () => !desktopPresent(),
+    alive: (id) => hub.get(id)?.live ?? false,
+  });
   const pruneTimer = setInterval(() => hub.prune(), 10 * 60 * 1000);
 
   hub.subscribe((change) => {
