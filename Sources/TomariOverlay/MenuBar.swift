@@ -51,6 +51,10 @@ final class MenuBar: NSObject, NSMenuDelegate {
         waitingSound.state = Preferences.soundWhenWaiting ? .on : .off
         menu.addItem(waitingSound)
 
+        let byProject = entry("Color by project", #selector(toggleColorByProject))
+        byProject.state = Preferences.colorByProject ? .on : .off
+        menu.addItem(byProject)
+
         // Retried here so the shortcut recovers once whoever held it lets go.
         if Preferences.jumpToWaiting { jumpKey.register() }
         let unavailable = Preferences.jumpToWaiting && !jumpKey.isRegistered
@@ -89,6 +93,11 @@ final class MenuBar: NSObject, NSMenuDelegate {
 
     @objc private func toggleWaitingSound() {
         Preferences.soundWhenWaiting.toggle()
+    }
+
+    @objc private func toggleColorByProject() {
+        Preferences.colorByProject.toggle()
+        strip.refresh()
     }
 
     @objc private func toggleJump() {
