@@ -20,7 +20,11 @@ export class SessionHub {
   private records = new Map<string, SessionRecord>();
   private pins: Map<string, Pin>;
   private listeners = new Set<HubListener>();
-  /** Session in front in the desktop app; not persisted. */
+  /** Start of each session's first prompt, kept only in memory: it is never written to the store. */
+  private prompts = new Map<string, string>();
+  /** The label the panel last saw for each session. */
+  private labels = new Map<string, string>();
+  /** Session in front in the terminal or desktop app; not persisted. */
   focusedId: string | null = null;
 
   constructor(
@@ -29,6 +33,7 @@ export class SessionHub {
   ) {
     for (const rec of store.loadSessions()) this.records.set(rec.id, rec);
     this.pins = store.loadPins();
+    this.relabel();
   }
 
   subscribe(listener: HubListener): () => void {
@@ -59,7 +64,7 @@ export class SessionHub {
       .filter((rec) => rec.live && rec.kind !== "background")
       .map((rec) => ({
         id: rec.id,
-        name: rec.name ?? basename(rec.cwd),
+        name: this.labelOf(rec),
         cwd: rec.cwd,
         lastActivityAt: rec.lastEventAt > 0 ? rec.lastEventAt : rec.stateSince, // 0: only the poll has seen it
         pinned: this.pins.has(rec.id),
@@ -67,6 +72,10 @@ export class SessionHub {
   }
 
   handleHook(event: HookEvent) {
+    if (event.hook_event_name === "UserPromptSubmit" && typeof event.prompt === "string" && !this.prompts.has(event.session_id)) {
+      const snippet = snippetOf(event.prompt);
+      if (snippet) this.prompts.set(event.session_id, snippet);
+    }
     this.commit(applyHookEvent(this.records.get(event.session_id), event, this.now()));
   }
 
@@ -88,6 +97,7 @@ export class SessionHub {
     else this.store.unpin(id);
     this.pins = this.store.loadPins();
     this.emit({ type: "session", session: this.toPanel(rec) });
+    this.announceRelabeled(); // a pinned ended session starts to count for label clashes
     return true;
   }
 
@@ -113,19 +123,79 @@ export class SessionHub {
     for (const rec of this.records.values()) {
       if (rec.state === "ended" && !this.pins.has(rec.id) && rec.stateSince < cutoff) {
         this.records.delete(rec.id);
+        this.prompts.delete(rec.id);
+        this.labels.delete(rec.id);
         this.store.deleteSession(rec.id);
         this.emit({ type: "removed", id: rec.id });
       }
     }
+    this.announceRelabeled();
   }
 
   private commit(next: SessionRecord) {
     const prev = this.records.get(next.id);
     this.records.set(next.id, next);
     this.store.saveSession(next);
-    if (!prev || VISIBLE.some((k) => prev[k] !== next[k])) {
+    const relabeled = this.relabel();
+    if (!prev || VISIBLE.some((k) => prev[k] !== next[k]) || relabeled.includes(next.id)) {
       this.emit({ type: "session", session: this.toPanel(next) });
     }
+    for (const id of relabeled) if (id !== next.id) this.emitSession(id);
+  }
+
+  private emitSession(id: string) {
+    const rec = this.records.get(id);
+    if (rec) this.emit({ type: "session", session: this.toPanel(rec) });
+  }
+
+  private announceRelabeled() {
+    for (const id of this.relabel()) this.emitSession(id);
+  }
+
+  /** Recomputes every label; returns the ids whose label changed since the last call. */
+  private relabel(): string[] {
+    const next = this.computeLabels();
+    const changed = [...next].filter(([id, label]) => this.labels.get(id) !== label).map(([id]) => id);
+    this.labels = next;
+    return changed;
+  }
+
+  private labelOf(rec: SessionRecord) {
+    return this.labels.get(rec.id) ?? this.baseLabel(rec);
+  }
+
+  private baseLabel(rec: SessionRecord) {
+    return rec.name ?? basename(rec.cwd);
+  }
+
+  /**
+   * An untitled session whose label matches another visible session's gets the start of its first
+   * prompt (a short id if the prompt is unknown, e.g. after a restart); a clash that is left
+   * gets the short id too. Ended sessions nobody pinned don't count: they are not on screen.
+   */
+  private computeLabels(): Map<string, string> {
+    const recs = [...this.records.values()];
+    const visible = (rec: SessionRecord) => rec.live || this.pins.has(rec.id);
+    const count = new Map<string, number>();
+    for (const rec of recs) if (visible(rec)) count.set(this.baseLabel(rec), (count.get(this.baseLabel(rec)) ?? 0) + 1);
+
+    const labels = new Map<string, string>();
+    for (const rec of recs) {
+      const base = this.baseLabel(rec);
+      const clash = rec.name === null && visible(rec) && (count.get(base) ?? 0) > 1;
+      const snippet = this.prompts.get(rec.id);
+      labels.set(rec.id, clash ? `${base} · ${snippet ?? shortId(rec.id)}` : base);
+    }
+
+    const used = new Map<string, number>();
+    for (const [id, label] of labels) if (visible(this.records.get(id)!)) used.set(label, (used.get(label) ?? 0) + 1);
+    for (const [id, label] of labels) {
+      const rec = this.records.get(id)!;
+      if (rec.name === null && visible(rec) && (used.get(label) ?? 0) > 1 && label !== this.baseLabel(rec)) {
+        labels.set(id, `${label} #${shortId(id)}`);
+      }
+    }
+    return labels;
   }
 
   private emit(change: HubChange) {
@@ -136,7 +206,7 @@ export class SessionHub {
     const pin = this.pins.get(rec.id);
     return {
       id: rec.id,
-      name: rec.name ?? basename(rec.cwd),
+      name: this.labelOf(rec),
       cwd: rec.cwd,
       state: rec.state,
       activity: rec.activity,
@@ -147,4 +217,13 @@ export class SessionHub {
       icon: pin?.icon ?? DEFAULT_ICON,
     };
   }
+}
+
+const SNIPPET_LENGTH = 24;
+const shortId = (id: string) => id.slice(0, 4);
+
+/** A prompt collapsed to one line and cut to a label-sized snippet. */
+function snippetOf(prompt: string) {
+  const text = prompt.replace(/\s+/g, " ").trim();
+  return text.length <= SNIPPET_LENGTH ? text : `${text.slice(0, SNIPPET_LENGTH - 1).trimEnd()}…`;
 }

@@ -33,6 +33,58 @@ describe("SessionHub", () => {
     expect(hub.get(A)!.name).toBe("Claude panel");
   });
 
+  test("tabs in one folder get told apart by the start of their first prompt", () => {
+    const { hub } = setup();
+    hub.handleHook(ev(A, "SessionStart"));
+    hub.handleHook(ev(B, "SessionStart"));
+    expect(hub.get(A)!.name).not.toBe(hub.get(B)!.name); // no prompt yet: a short id tells them apart
+    expect(hub.get(A)!.name).toBe(`claude-panel · ${A.slice(0, 4)}`);
+
+    hub.handleHook(ev(A, "UserPromptSubmit", { prompt: "fix the login\n  redirect loop on Safari, please" }));
+    hub.handleHook(ev(B, "UserPromptSubmit", { prompt: "add tests" }));
+    hub.handleHook(ev(A, "UserPromptSubmit", { prompt: "a later prompt does not rename it" }));
+    expect(hub.get(A)!.name).toBe("claude-panel · fix the login redirect…");
+    expect(hub.get(B)!.name).toBe("claude-panel · add tests");
+  });
+
+  test("a lone session, or one with a title, keeps its plain label", () => {
+    const { hub } = setup();
+    hub.handleHook(ev(A, "UserPromptSubmit", { prompt: "hello" }));
+    expect(hub.get(A)!.name).toBe("claude-panel");
+
+    hub.handleHook(ev(B, "UserPromptSubmit", { prompt: "world" }));
+    hub.handleAgents([{ sessionId: B, name: "Release work", cwd: "/Users/dev/claude-panel", status: "busy", startedAt: 0 }]);
+    expect(hub.get(B)!.name).toBe("Release work");
+    expect(hub.get(A)!.name).toBe("claude-panel");
+  });
+
+  test("a label change reaches the panel for the session that was already shown", () => {
+    const { hub, changes } = setup();
+    hub.handleHook(ev(A, "UserPromptSubmit", { prompt: "first" }));
+    hub.handleHook(ev(B, "UserPromptSubmit", { prompt: "second" }));
+    const renamed = changes.filter((c) => c.type === "session" && c.session.id === A).map((c) => c.type === "session" && c.session.name);
+    expect(renamed).toEqual(["claude-panel", "claude-panel · first"]);
+  });
+
+  test("labels of ended sessions do not force a suffix on the live one", () => {
+    const { hub } = setup();
+    hub.handleHook(ev(A, "UserPromptSubmit", { prompt: "old" }));
+    hub.handleHook(ev(A, "SessionEnd"));
+    hub.handleHook(ev(B, "UserPromptSubmit", { prompt: "new" }));
+    expect(hub.get(B)!.name).toBe("claude-panel");
+  });
+
+  test("the strip lists tabs in a stable order: by when they started", () => {
+    const { hub, tick } = setup();
+    hub.handleHook(ev(B, "UserPromptSubmit", { prompt: "second id, first tab" }));
+    tick(1000);
+    hub.handleHook(ev(A, "UserPromptSubmit", { prompt: "first id, second tab" }));
+    tick(1000);
+    hub.handleHook(ev(B, "Stop"));
+    expect(hub.snapshot().map((s) => s.id)).toEqual([B, A]);
+    expect(hub.liveEntries().map((s) => s.id)).toEqual([B, A]);
+  });
+
   test("only visible changes are announced", () => {
     const { hub, changes } = setup();
     const tool = { tool_name: "Bash", tool_input: { command: "ls" } };
