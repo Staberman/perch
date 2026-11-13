@@ -144,6 +144,8 @@ export function startServers({
               const session = hub.get(msg.id);
               const result = await open(msg.id, { cwd: session?.cwd, kind: session?.kind, name: hub.titleOf(msg.id) ?? undefined });
               // The desktop log confirms focus a moment later; show it right away.
+              // One line per request, no paths or prompt text: the error may hold local paths.
+              console.error(`open ${msg.id.slice(0, 8)}: ${result.ok ? "ok" : result.error.split("\n")[0]!.replace(/\S*\/\S*/g, "<path>").slice(0, 120)}`);
               if (result.ok) hub.setFocused(msg.id);
               else failed(ws, result.error);
               break;

@@ -55,8 +55,17 @@ final class JumpHotKey {
 
     private func pressed() {
         // The system beep tells the user the press was heard even though there is nowhere to go.
-        guard let id = WaitingJump.target(in: Array(link.list.sessions.values), focusedId: link.list.focusedId) else { return NSSound.beep() }
+        guard let id = WaitingJump.target(in: Array(link.list.sessions.values), focusedId: link.list.focusedId) else {
+            log("⌃⌥J → nothing")
+            return NSSound.beep()
+        }
+        log("⌃⌥J → \(id.prefix(8))")
         link.send(.open(id: id))
+    }
+
+    /// One line per press in the overlay log; never prompt text or paths.
+    private func log(_ line: String) {
+        FileHandle.standardError.write(Data("tomari-overlay: \(line)\n".utf8))
     }
 
     private func failed(_ what: String, _ status: OSStatus) -> Bool {
