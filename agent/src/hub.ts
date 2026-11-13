@@ -111,9 +111,13 @@ export class SessionHub {
     for (const rec of [...this.records.values()]) {
       const known = [rec.pid, pids.get(rec.id)].filter((pid): pid is number => pid != null);
       if (rec.live && known.length > 0 && !known.some(isAlive)) {
-        this.commit({ ...rec, state: "ended", activity: null, live: false, pid: null, stateSince: this.now() });
+        this.commit(this.ended(rec));
       }
     }
+  }
+
+  private ended(rec: SessionRecord): SessionRecord {
+    return { ...rec, state: "ended", activity: null, live: false, pid: null, stateSince: this.now() };
   }
 
   /** Starts tracking a session that is not running, e.g. a desktop session about to be pinned. No-op if known. */
@@ -126,7 +130,7 @@ export class SessionHub {
   endSession(id: string): boolean {
     const rec = this.records.get(id);
     if (!rec) return false;
-    this.commit({ ...rec, state: "ended", activity: null, live: false, pid: null, stateSince: this.now() });
+    this.commit(this.ended(rec));
     this.stoppedUntil.set(id, this.now() + STOPPED_GRACE_MS);
     if (this.focusedId === id) this.setFocused(null);
     return true;
@@ -205,7 +209,9 @@ export class SessionHub {
 
   /** Recomputes every label; returns the ids whose label changed since the last call. */
   private relabel(): string[] {
-    const next = this.computeLabels();
+    const clashing = this.clashingIds();
+    this.requestMissingPrompts(clashing);
+    const next = this.computeLabels(clashing);
     const changed = [...next].filter(([id, label]) => this.labels.get(id) !== label).map(([id]) => id);
     this.labels = next;
     return changed;
@@ -233,35 +239,39 @@ export class SessionHub {
     return rec.name ?? basename(rec.cwd);
   }
 
-  /**
-   * An untitled session whose label matches another visible session's gets the start of its first
-   * prompt (a short id if the prompt is unknown, e.g. after a restart); a clash that is left
-   * gets the short id too. Ended sessions nobody pinned don't count: they are not on screen.
-   */
-  private computeLabels(): Map<string, string> {
-    const recs = [...this.records.values()];
-    const visible = (rec: SessionRecord) => rec.live || this.pins.has(rec.id);
+  /** Whether the strip shows the session: it runs, or somebody pinned it. Ended sessions nobody pinned are not on screen. */
+  private isVisible(rec: SessionRecord) {
+    return rec.live || this.pins.has(rec.id);
+  }
+
+  /** Untitled visible sessions whose plain label another visible session shares. */
+  private clashingIds(): Set<string> {
+    const shown = [...this.records.values()].filter((rec) => this.isVisible(rec));
     const count = new Map<string, number>();
-    for (const rec of recs) if (visible(rec)) count.set(this.baseLabel(rec), (count.get(this.baseLabel(rec)) ?? 0) + 1);
+    for (const rec of shown) count.set(this.baseLabel(rec), (count.get(this.baseLabel(rec)) ?? 0) + 1);
+    return new Set(shown.filter((rec) => rec.name === null && (count.get(this.baseLabel(rec)) ?? 0) > 1).map((rec) => rec.id));
+  }
 
-    const labels = new Map<string, string>();
-    for (const rec of recs) {
+  /** Starts a transcript read for each clashing session that has no snippet yet; it relabels when one lands. */
+  private requestMissingPrompts(clashing: ReadonlySet<string>) {
+    for (const id of clashing) if (!this.prompts.has(id)) this.lookUpPrompt(id);
+  }
+
+  /**
+   * A clashing session gets the start of its first prompt (a short id if the prompt is unknown, e.g.
+   * after a restart); a clash that is left, because the prompts start alike, gets the short id too.
+   * Pure: it reads state and starts nothing.
+   */
+  private computeLabels(clashing: ReadonlySet<string>): Map<string, string> {
+    const entries = [...this.records.values()].map((rec) => {
       const base = this.baseLabel(rec);
-      const clash = rec.name === null && visible(rec) && (count.get(base) ?? 0) > 1;
-      const snippet = this.prompts.get(rec.id);
-      if (clash && !snippet) this.lookUpPrompt(rec.id);
-      labels.set(rec.id, clash ? `${base} · ${snippet ?? shortId(rec.id)}` : base);
-    }
-
+      return { rec, label: clashing.has(rec.id) ? `${base} · ${this.prompts.get(rec.id) ?? shortId(rec.id)}` : base };
+    });
     const used = new Map<string, number>();
-    for (const [id, label] of labels) if (visible(this.records.get(id)!)) used.set(label, (used.get(label) ?? 0) + 1);
-    for (const [id, label] of labels) {
-      const rec = this.records.get(id)!;
-      if (rec.name === null && visible(rec) && (used.get(label) ?? 0) > 1 && label !== this.baseLabel(rec)) {
-        labels.set(id, `${label} #${shortId(id)}`);
-      }
-    }
-    return labels;
+    for (const { rec, label } of entries) if (this.isVisible(rec)) used.set(label, (used.get(label) ?? 0) + 1);
+    return new Map(
+      entries.map(({ rec, label }) => [rec.id, clashing.has(rec.id) && (used.get(label) ?? 0) > 1 ? `${label} #${shortId(rec.id)}` : label]),
+    );
   }
 
   private emit(change: HubChange) {
