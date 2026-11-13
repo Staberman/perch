@@ -139,7 +139,12 @@ export async function processTty(pid: number): Promise<string | undefined> {
 /** Picks the command that would open the session, without running it. `cwd` is where it last ran. */
 export async function planOpen(
   sessionId: string,
-  { cwd, liveDir = LIVE_DIR, desktopDir = DESKTOP_SESSIONS_DIR, ttyOf = processTty } = {},
+  {
+    cwd,
+    liveDir = LIVE_DIR,
+    desktopDir = DESKTOP_SESSIONS_DIR,
+    ttyOf = processTty,
+  }: { cwd?: string; liveDir?: string; desktopDir?: string; ttyOf?: (pid: number) => Promise<string | undefined> } = {},
 ): Promise<OpenResult> {
   if (!isSessionId(sessionId)) return { ok: false, error: "invalid session id" };
 
