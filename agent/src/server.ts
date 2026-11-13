@@ -6,7 +6,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { basename } from "node:path";
 import type { LibraryEntry, ServerMessage } from "../../shared/protocol.ts";
-import { listDesktopSessions, type DesktopSession } from "./desktop-sessions.ts";
+import { desktopSessionsLister, type DesktopSession } from "./desktop-sessions.ts";
 import type { SessionHub } from "./hub.ts";
 import { openSession, openTerminalTab, type OpenResult } from "./open-session.ts";
 import { parseClientMessage } from "./protocol-guard.ts";
@@ -35,7 +35,7 @@ export function startServers({
   panelHost = "127.0.0.1",
   open = openSession,
   terminal = openTerminalTab,
-  desktopSessions = () => listDesktopSessions(),
+  desktopSessions = desktopSessionsLister(),
 }: ServerOptions) {
   /** Desktop sessions plus the live ones the agent sees, e.g. in a terminal; a desktop entry wins a duplicate. */
   async function library(): Promise<LibraryEntry[]> {

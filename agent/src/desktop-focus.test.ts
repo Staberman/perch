@@ -102,3 +102,19 @@ test("a null that lasts means nothing is in front", async () => {
     stop();
   }
 });
+
+test("a missing log is checked rarely, and still picked up once it appears", async () => {
+  let reads = 0;
+  const seen: (string | null)[] = [];
+  const stop = watchDesktopFocus((id) => seen.push(id), { log, sessionsDir, pollMs: 5, missingPollMs: 80 });
+  try {
+    await Bun.sleep(60);
+    reads = seen.length;
+    writeFileSync(log, focusLine(LOCAL_A));
+    await waitFor(() => seen.length === 1);
+    expect(reads).toBe(0);
+    expect(seen).toEqual([CLI_A]);
+  } finally {
+    stop();
+  }
+});

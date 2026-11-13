@@ -14,6 +14,30 @@ export function hasDesktopApp(dir = DESKTOP_SESSIONS_DIR) {
   return existsSync(dir);
 }
 
+/**
+ * Cached `hasDesktopApp`: the + menu and the focus watchers ask often, and the answer rarely changes.
+ * Re-checked every `ttlMs`, so installing the desktop app later still works without a restart.
+ */
+export function desktopProbe({ dir = DESKTOP_SESSIONS_DIR, ttlMs = 5 * 60_000, now = Date.now, exists = existsSync } = {}) {
+  let checkedAt = -Infinity;
+  let present = false;
+  return () => {
+    if (now() - checkedAt >= ttlMs) {
+      present = exists(dir);
+      checkedAt = now();
+    }
+    return present;
+  };
+}
+
+/** The agent's shared probe. */
+export const desktopPresent = desktopProbe();
+
+/** `list`, skipped (no directory scan) while the probe says there is no desktop app. */
+export function desktopSessionsLister(probe: () => boolean = desktopPresent, list: () => Promise<DesktopSession[]> = () => listDesktopSessions()) {
+  return async (): Promise<DesktopSession[]> => (probe() ? list() : []);
+}
+
 export interface DesktopSession {
   /** The app's id, used in claude:// links. */
   localId: string;

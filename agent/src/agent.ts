@@ -1,7 +1,7 @@
 import { PANEL_PORT } from "../../shared/protocol.ts";
 import { HOOK_PORT, loadConfig, panelUrls } from "./config.ts";
 import { watchDesktopFocus } from "./desktop-focus.ts";
-import { hasDesktopApp } from "./desktop-sessions.ts";
+import { desktopPresent } from "./desktop-sessions.ts";
 import { SessionHub } from "./hub.ts";
 import { startPoller } from "./poller.ts";
 import { startServers } from "./server.ts";
@@ -23,7 +23,7 @@ export async function runAgent({ lan }: { lan: boolean }) {
   const stopPoller = startPoller(hub);
   const stopFocus = watchDesktopFocus((id) => hub.setFocused(id));
   // Terminal sessions have no desktop log to tail; with the desktop app present, its log stays the only source.
-  const stopTerminalFocus = watchTerminalFocus((id) => hub.setFocused(id), { enabled: () => !hasDesktopApp() });
+  const stopTerminalFocus = watchTerminalFocus((id) => hub.setFocused(id), { enabled: () => !desktopPresent() });
   const pruneTimer = setInterval(() => hub.prune(), 10 * 60 * 1000);
 
   hub.subscribe((change) => {
