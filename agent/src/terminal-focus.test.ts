@@ -98,3 +98,15 @@ test("a tty maps to the live session on it, asking ps once per pid", async () =>
   expect(await resolve("/dev/ttys004")).toBeNull();
   expect(asked).toEqual([100]);
 });
+
+test("a failed ps lookup is retried on the next tick", async () => {
+  let fail = true;
+  const resolve = ttyResolver({
+    pids: async () => new Map([[A, 100]]),
+    alive: () => true,
+    ttyOf: async () => (fail ? undefined : "ttys003"),
+  });
+  expect(await resolve("/dev/ttys003")).toBeNull();
+  fail = false;
+  expect(await resolve("/dev/ttys003")).toBe(A);
+});

@@ -33,7 +33,11 @@ export interface TerminalFocusOptions {
 
 async function runFrontTty(): Promise<string> {
   const proc = Bun.spawn(["osascript", "-e", FRONT_TTY], { stdout: "pipe", stderr: "pipe" });
-  const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+  // A beachballed Terminal would hold the AppleEvent for about 2 minutes; give up sooner and back off.
+  const timer = setTimeout(() => proc.kill(), 10_000);
+  const [out, err, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]).finally(() =>
+    clearTimeout(timer),
+  );
   if (code !== 0) throw new Error(`osascript exited with ${code}${err.trim() ? `: ${err.trim().slice(0, 200)}` : ""}`);
   return out.trim();
 }
@@ -48,13 +52,18 @@ export function ttyResolver({
   ttyOf?: (pid: number) => Promise<string | undefined>;
   alive?: (pid: number) => boolean;
 } = {}) {
-  const ttys = new Map<number, string | undefined>();
+  const ttys = new Map<number, string>();
   return async (tty: string): Promise<string | null> => {
-    for (const [id, pid] of await pids()) {
+    const current = await pids();
+    const seen = new Set(current.values());
+    for (const pid of ttys.keys()) if (!seen.has(pid)) ttys.delete(pid); // gone, or its pid may be reused
+    for (const [id, pid] of current) {
       if (!alive(pid)) continue;
-      if (!ttys.has(pid)) ttys.set(pid, await ttyOf(pid));
-      const found = ttys.get(pid);
-      if (found && tty === `/dev/${found}`) return id;
+      if (!ttys.has(pid)) {
+        const found = await ttyOf(pid); // a failed lookup isn't cached, so the next tick retries it
+        if (found) ttys.set(pid, found);
+      }
+      if (tty === `/dev/${ttys.get(pid)}`) return id;
     }
     return null;
   };

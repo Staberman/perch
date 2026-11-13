@@ -97,6 +97,13 @@ describe("SessionHub", () => {
     expect(hub.get(B)).toMatchObject({ state: "ended", live: false });
   });
 
+  test("a stale recorded pid doesn't end a session whose new process is alive", () => {
+    const { hub } = setup();
+    hub.handleAgents([{ sessionId: A, cwd: "/x", pid: 111, status: "busy", startedAt: 0 }]);
+    hub.endDead((pid) => pid !== 111, new Map([[A, 333]])); // resumed: ~/.claude/sessions has the new pid
+    expect(hub.get(A)).toMatchObject({ state: "working", live: true });
+  });
+
   test("a session with no known pid is left alone", () => {
     const { hub } = setup();
     hub.handleHook(ev(A, "UserPromptSubmit"));

@@ -86,12 +86,13 @@ export class SessionHub {
   /**
    * Ends live sessions whose process is gone: a closed tab often skips SessionEnd, and if
    * `claude agents` fails nothing else would. `pids` fills in sessions the hooks alone have seen.
-   * A session with no known pid is left alone.
+   * A session with no known pid is left alone, and one ends only when every pid it is known by is
+   * dead: a resumed session gets a new pid before the poll replaces the recorded one.
    */
   endDead(isAlive: (pid: number) => boolean, pids: ReadonlyMap<string, number> = new Map()) {
     for (const rec of [...this.records.values()]) {
-      const pid = rec.pid ?? pids.get(rec.id);
-      if (rec.live && pid != null && !isAlive(pid)) {
+      const known = [rec.pid, pids.get(rec.id)].filter((pid): pid is number => pid != null);
+      if (rec.live && known.length > 0 && !known.some(isAlive)) {
         this.commit({ ...rec, state: "ended", activity: null, live: false, pid: null, stateSince: this.now() });
       }
     }
