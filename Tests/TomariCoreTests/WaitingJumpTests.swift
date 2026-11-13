@@ -67,6 +67,20 @@ func waitingJumpTests() {
         expectEqual(WaitingJump.target(in: [justDone, asking], focusedId: nil), asking.id)
     }
 
+    test("the finished fallback skips background sessions, which may have no tab and would open a new one") {
+        var background = session(state: .done, stateSince: now - 10)
+        background.kind = "background"
+        let terminal = session(state: .done, stateSince: now - 600)
+        expectEqual(WaitingJump.target(in: [background, terminal], focusedId: nil), terminal.id)
+        expect(WaitingJump.target(in: [background], focusedId: nil) == nil, "only background")
+    }
+
+    test("a waiting background session is still a target") {
+        var asking = waiting(since: 60)
+        asking.kind = "background"
+        expectEqual(WaitingJump.target(in: [asking], focusedId: nil), asking.id)
+    }
+
     test("finished sessions that are no longer live are skipped") {
         let gone = session(state: .done, live: false, stateSince: now - 10)
         expect(WaitingJump.target(in: [gone], focusedId: nil) == nil, "not live")

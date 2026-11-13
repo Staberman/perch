@@ -53,12 +53,20 @@ final class JumpHotKey {
         if Self.active === self { Self.active = nil }
     }
 
+    /// The last jump, counted as the focused session for a moment: the agent reports the new focus only after
+    /// the tab is in front, and quick presses would otherwise pick the same target again.
+    private var lastJump: (id: String, at: Date)?
+    private static let jumpMemory: TimeInterval = 3
+
     private func pressed() {
+        let now = Date()
+        let recent = lastJump.flatMap { now.timeIntervalSince($0.at) < Self.jumpMemory ? $0.id : nil }
         // The system beep tells the user the press was heard even though there is nowhere to go.
-        guard let id = WaitingJump.target(in: Array(link.list.sessions.values), focusedId: link.list.focusedId) else {
+        guard let id = WaitingJump.target(in: Array(link.list.sessions.values), focusedId: recent ?? link.list.focusedId) else {
             log("⌃⌥J → nothing")
             return NSSound.beep()
         }
+        lastJump = (id, now)
         log("⌃⌥J → \(id.prefix(8))")
         link.send(.open(id: id))
     }
