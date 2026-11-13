@@ -1,10 +1,12 @@
 import { PANEL_PORT } from "../../shared/protocol.ts";
 import { HOOK_PORT, loadConfig, panelUrls } from "./config.ts";
 import { watchDesktopFocus } from "./desktop-focus.ts";
+import { hasDesktopApp } from "./desktop-sessions.ts";
 import { SessionHub } from "./hub.ts";
 import { startPoller } from "./poller.ts";
 import { startServers } from "./server.ts";
 import { Store } from "./store.ts";
+import { watchTerminalFocus } from "./terminal-focus.ts";
 
 /** Runs until SIGINT or SIGTERM. `lan` opens the WebSocket to the network, for a claude-panel Pi. */
 export async function runAgent({ lan }: { lan: boolean }) {
@@ -20,6 +22,8 @@ export async function runAgent({ lan }: { lan: boolean }) {
   });
   const stopPoller = startPoller(hub);
   const stopFocus = watchDesktopFocus((id) => hub.setFocused(id));
+  // Terminal sessions have no desktop log to tail; with the desktop app present, its log stays the only source.
+  const stopTerminalFocus = watchTerminalFocus((id) => hub.setFocused(id), { enabled: () => !hasDesktopApp() });
   const pruneTimer = setInterval(() => hub.prune(), 10 * 60 * 1000);
 
   hub.subscribe((change) => {
@@ -42,6 +46,7 @@ export async function runAgent({ lan }: { lan: boolean }) {
     clearInterval(pruneTimer);
     stopPoller();
     stopFocus();
+    stopTerminalFocus();
     servers.stop();
     store.close();
     process.exit(0);

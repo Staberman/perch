@@ -126,7 +126,7 @@ async function recordedCwd(id: string, dir: string): Promise<string | undefined>
 }
 
 /** Controlling terminal of a process, like "ttys003" ("??" when it has none). */
-async function processTty(pid: number): Promise<string | undefined> {
+export async function processTty(pid: number): Promise<string | undefined> {
   try {
     const proc = Bun.spawn(["ps", "-o", "tty=", "-p", String(pid)], { stdout: "pipe", stderr: "ignore" });
     const out = await new Response(proc.stdout).text();
