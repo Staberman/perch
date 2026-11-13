@@ -24,6 +24,15 @@ export interface ServerOptions {
   terminal?: () => Promise<OpenResult>;
   stop?: (id: string) => Promise<OpenResult>;
   desktopSessions?: () => Promise<DesktopSession[]>;
+  /** Whether a panel client connects from this Mac; with `--pi` others can reach the port. Replaceable for tests. */
+  isLocal?: (address: string | undefined) => boolean;
+}
+
+const LOOPBACK = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+
+/** Only a client on this Mac may stop sessions or see a command's error output. */
+function loopback(address: string | undefined) {
+  return address !== undefined && LOOPBACK.has(address);
 }
 
 const TOPIC = "panel";
@@ -39,6 +48,7 @@ export function startServers({
   terminal = openTerminalTab,
   stop = stopSession,
   desktopSessions = desktopSessionsLister(),
+  isLocal = loopback,
 }: ServerOptions) {
   /** Desktop sessions plus the live ones the agent sees, e.g. in a terminal; a desktop entry wins a duplicate. */
   async function library(): Promise<LibraryEntry[]> {
@@ -79,7 +89,14 @@ export function startServers({
     },
   });
 
-  const panelServer = Bun.serve({
+  /** A command's error output can hold local paths: only a client on this Mac gets it; others see a generic line. */
+  function failed(ws: { data: { local: boolean }; send(data: string): unknown }, error: string) {
+    if (ws.data.local) return send(ws, { type: "error", message: error });
+    console.error(`panel command failed: ${error}`);
+    send(ws, { type: "error", message: "the command failed on the Mac" });
+  }
+
+  const panelServer = Bun.serve<{ local: boolean }>({
     hostname: panelHost,
     port: panelPort,
     fetch(req, server) {
@@ -87,7 +104,7 @@ export function startServers({
       if (url.pathname === "/health") return Response.json({ ok: true, sessions: hub.snapshot().length });
       if (url.pathname !== "/ws") return new Response("not found", { status: 404 });
       if (!sameSecret(url.searchParams.get("token"), token)) return new Response("unauthorized", { status: 401 });
-      if (server.upgrade(req)) return;
+      if (server.upgrade(req, { data: { local: isLocal(server.requestIP(req)?.address) } })) return;
       return new Response("expected a WebSocket", { status: 400 });
     },
     websocket: {
@@ -104,7 +121,7 @@ export function startServers({
           if (msg.type === "library") return send(ws, { type: "library", sessions: await library() });
           if (msg.type === "terminal") {
             const result = await terminal();
-            if (!result.ok) send(ws, { type: "error", message: result.error });
+            if (!result.ok) failed(ws, result.error);
             return;
           }
           if (!hub.has(msg.id) && msg.type !== "open" && msg.type !== "stop") await adoptFromDesktop(msg.id);
@@ -116,17 +133,18 @@ export function startServers({
               const result = await open(msg.id, session?.cwd, session?.kind);
               // The desktop log confirms focus a moment later; show it right away.
               if (result.ok) hub.setFocused(msg.id);
-              else send(ws, { type: "error", message: result.error });
+              else failed(ws, result.error);
               break;
             }
             case "stop": {
+              if (!ws.data.local) return send(ws, { type: "error", message: "stop only works from this Mac" });
               const session = hub.get(msg.id);
               if (!session?.live || session.kind !== "background") {
                 return send(ws, { type: "error", message: "not a running background session" });
               }
               const result = await stop(msg.id);
               if (result.ok) hub.endSession(msg.id);
-              else send(ws, { type: "error", message: result.error });
+              else failed(ws, result.error);
               break;
             }
             case "pin":

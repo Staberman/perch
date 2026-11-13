@@ -111,7 +111,7 @@ On Vercel, import the repository and set its Root Directory to `site`; Vercel de
 ## Privacy
 
 - Everything stays on your Mac: the overlay only talks to the agent on 127.0.0.1, and the agent only listens there unless you choose `--pi`. No telemetry.
-- The WebSocket needs the pairing token in `~/Library/Application Support/tomari/config.json`, and accepts only `open`, `pin`, `icon`, `stop`, `library` and `terminal`, with validated arguments.
+- The WebSocket needs the pairing token in `~/Library/Application Support/tomari/config.json`, and accepts only `open`, `pin`, `icon`, `stop`, `library` and `terminal`, with validated arguments. `stop`, and the error output of a failed command, are only for a client on this Mac: with `--pi`, the Pi panel can neither stop sessions nor read local paths.
 - Tomari keeps its data in `~/Library/Application Support/tomari/`, its logs in `~/Library/Logs/tomari/`, and the strip's edge in the `com.elrincondeldev.tomari` defaults.
 - When several untitled sessions share a folder name, the strip tells them apart with the first 24 characters of each one's first prompt. It is kept in memory only, never written to disk, but it is visible on screen like the hover label below.
 - The hover label can show tool details such as a shell command, so anyone who can see your screen can read them.

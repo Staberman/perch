@@ -24,8 +24,10 @@ let stopped: string[];
 let stop: (id: string) => Promise<OpenResult>;
 let desktopSessions: () => Promise<DesktopSession[]>;
 let terminal: () => Promise<OpenResult>;
+let local: boolean;
 
 beforeEach(() => {
+  local = true;
   opened = [];
   stopped = [];
   stop = async (id) => {
@@ -48,6 +50,7 @@ beforeEach(() => {
     desktopSessions: () => desktopSessions(),
     terminal: () => terminal(),
     stop: (id) => stop(id),
+    isLocal: () => local,
   });
 });
 afterEach(() => servers.stop());
@@ -282,6 +285,28 @@ test("stop refuses interactive, closed and unknown sessions without running anyt
   ws.send(JSON.stringify({ type: "stop", id: IDLE })); // a desktop session: must not even be adopted
   expect(await next()).toEqual({ type: "error", message: "unknown session" });
   expect(stopped).toEqual([]);
+  ws.close();
+});
+
+test("stop is refused from a client that is not on this Mac, e.g. a Pi panel", async () => {
+  hub.handleAgents([{ sessionId: BG, cwd: "/tmp/bg", kind: "background", status: "idle", startedAt: 0 }]);
+  local = false;
+  const { ws, next } = await connect();
+  await next(); // snapshot
+  ws.send(JSON.stringify({ type: "stop", id: BG }));
+  expect(await next()).toEqual({ type: "error", message: "stop only works from this Mac" });
+  expect(stopped).toEqual([]);
+  expect(hub.get(BG)!.live).toBe(true);
+  ws.close();
+});
+
+test("a client that is not on this Mac gets a generic error, not the command's output", async () => {
+  local = false;
+  terminal = async () => ({ ok: false, error: "osascript exited with 1: /Users/someone/private path" });
+  const { ws, next } = await connect();
+  await next(); // snapshot
+  ws.send(JSON.stringify({ type: "terminal" }));
+  expect(await next()).toEqual({ type: "error", message: "the command failed on the Mac" });
   ws.close();
 });
 
