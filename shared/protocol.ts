@@ -37,6 +37,12 @@ export interface SessionIcon {
 
 export const DEFAULT_ICON: SessionIcon = { character: "default", color: "#d97757" };
 
+/** What `claude agents` says a session is. Clients must treat other values as unknown. */
+export type SessionKind = "interactive" | "background" | (string & {});
+
+/** The Claude daemon's own sessions (`--bg`, `claude agents`): no terminal tty to focus. */
+export const BACKGROUND_KIND = "background" satisfies SessionKind;
+
 export interface PanelSession {
   id: string;
   name: string;
@@ -56,7 +62,7 @@ export interface PanelSession {
    * From `claude agents`: "interactive" (a terminal) or "background" (`--bg`, run by the Claude daemon).
    * Absent until the poll has seen the session. Clients must treat other values as unknown.
    */
-  kind?: "interactive" | "background" | (string & {});
+  kind?: SessionKind;
 }
 
 /** A desktop-app session the panel can pin, running or not. */

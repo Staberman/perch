@@ -3,7 +3,7 @@
  * about changes the panel can see, so a burst of identical hook events yields one message.
  */
 import { basename } from "node:path";
-import { DEFAULT_ICON, type LibraryEntry, type PanelSession, type SessionIcon } from "../../shared/protocol.ts";
+import { BACKGROUND_KIND, DEFAULT_ICON, type LibraryEntry, type PanelSession, type SessionIcon } from "../../shared/protocol.ts";
 import { applyHookEvent, reconcile, type AgentEntry, type HookEvent, type SessionRecord } from "./state.ts";
 import type { Pin, Store } from "./store.ts";
 
@@ -71,7 +71,7 @@ export class SessionHub {
    */
   liveEntries(): LibraryEntry[] {
     return [...this.records.values()]
-      .filter((rec) => rec.live && rec.kind !== "background")
+      .filter((rec) => rec.live && rec.kind !== BACKGROUND_KIND)
       .map((rec) => ({
         id: rec.id,
         name: this.labelOf(rec),

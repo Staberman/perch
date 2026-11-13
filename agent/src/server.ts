@@ -5,10 +5,10 @@
  */
 import { timingSafeEqual } from "node:crypto";
 import { basename } from "node:path";
-import type { LibraryEntry, ServerMessage } from "../../shared/protocol.ts";
+import { BACKGROUND_KIND, type LibraryEntry, type ServerMessage } from "../../shared/protocol.ts";
 import { desktopSessionsLister, type DesktopSession } from "./desktop-sessions.ts";
 import type { SessionHub } from "./hub.ts";
-import { openSession, openTerminalTab, type OpenResult } from "./open-session.ts";
+import { openSession, openTerminalTab, type OpenOptions, type OpenResult } from "./open-session.ts";
 import { parseClientMessage } from "./protocol-guard.ts";
 import { stopSession } from "./stop-session.ts";
 import type { HookEvent } from "./state.ts";
@@ -20,7 +20,7 @@ export interface ServerOptions {
   panelPort: number;
   panelHost?: string;
   /** Replaceable so tests don't open real sessions or tabs, or read the real desktop app. */
-  open?: (id: string, cwd?: string, kind?: string, name?: string) => Promise<OpenResult>;
+  open?: (id: string, options?: OpenOptions) => Promise<OpenResult>;
   terminal?: () => Promise<OpenResult>;
   stop?: (id: string) => Promise<OpenResult>;
   desktopSessions?: () => Promise<DesktopSession[]>;
@@ -133,7 +133,7 @@ export function startServers({
           switch (msg.type) {
             case "open": {
               const session = hub.get(msg.id);
-              const result = await open(msg.id, session?.cwd, session?.kind, hub.titleOf(msg.id) ?? undefined);
+              const result = await open(msg.id, { cwd: session?.cwd, kind: session?.kind, name: hub.titleOf(msg.id) ?? undefined });
               // The desktop log confirms focus a moment later; show it right away.
               if (result.ok) hub.setFocused(msg.id);
               else failed(ws, result.error);
@@ -142,7 +142,7 @@ export function startServers({
             case "stop": {
               if (!ws.data.local) return send(ws, { type: "error", message: "stop only works from this Mac" });
               const session = hub.get(msg.id);
-              if (!session?.live || session.kind !== "background") {
+              if (!session?.live || session.kind !== BACKGROUND_KIND) {
                 return send(ws, { type: "error", message: "not a running background session" });
               }
               if (stopping.has(msg.id)) return send(ws, { type: "error", message: "already stopping" });

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { planOpen, run, sessionPids, type OpenResult } from "./open-session.ts";
+import { openTerminalTab, planOpen, run, sessionPids, type OpenResult } from "./open-session.ts";
 
 const ID = "0603472f-b7c5-4dae-b7a1-142468264b30";
 const CLOSED = "22222222-2222-4222-8222-222222222222"; // not running
@@ -154,4 +154,12 @@ test("a command that never finishes is killed and reported as timed out", async 
   expect(await run(["sleep", "30"], 50)).toEqual({ ok: false, error: "timed out" });
   expect(Date.now() - started).toBeLessThan(5000);
   expect(await run(["true"], 5000)).toEqual({ ok: true, command: ["true"] });
+});
+
+test("a new Terminal tab runs a fixed script with no arguments", async () => {
+  let command: string[] = [];
+  const result = await openTerminalTab(async (c) => ((command = c), { ok: true, command: c }));
+  expect(result.ok).toBe(true);
+  expect(command.slice(0, 2)).toEqual(["osascript", "-e"]);
+  expect(command).toHaveLength(3);
 });

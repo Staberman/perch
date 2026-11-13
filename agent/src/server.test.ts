@@ -43,7 +43,7 @@ beforeEach(() => {
     hookPort: 0, // 0 = any free port
     panelPort: 0,
     panelHost: "127.0.0.1",
-    open: async (id, cwd, kind, name) => {
+    open: async (id, { cwd, kind, name } = {}) => {
       opened.push([id, cwd, kind, name]);
       return { ok: true, command: ["fake-open", id] };
     },

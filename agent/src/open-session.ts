@@ -12,33 +12,53 @@
 import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { DESKTOP_SESSIONS_DIR, findDesktopSession, hasDesktopApp } from "./desktop-sessions.ts";
+import { BACKGROUND_KIND, type SessionKind } from "../../shared/protocol.ts";
 import { isSessionId } from "./protocol-guard.ts";
 
 const LOCAL_ID = /^local_[A-Za-z0-9-]{1,64}$/;
 const LIVE_DIR = `${homedir()}/.claude/sessions`;
 const TTY = /^ttys\d+$/;
 
-// Takes the tty as argv so it is never interpolated into the script. The `try` skips
-// Terminal windows without tabs, which fail with -1728 when asked for them.
+// The scripts get session data ONLY as argv, never interpolated into their source. They are built from the
+// small pieces below; `indent` only keeps the generated source readable.
+const indent = (text: string, tabs: number) =>
+  text
+    .split("\n")
+    .map((line) => (line ? "\t".repeat(tabs) + line : line))
+    .join("\n");
+
+/**
+ * Runs `body` once per tab of every Terminal window, with `w` the window and `t` the tab. The `try` skips
+ * windows without tabs, which fail with -1728 when asked for them.
+ */
+const forEachTab = (body: string) => `repeat with w in windows
+	set windowTabs to {}
+	try
+		set windowTabs to tabs of w
+	end try
+	repeat with t in windowTabs
+${indent(body, 2)}
+	end repeat
+end repeat`;
+
+/** Brings a tab, and the window holding it, to the front. */
+const raiseTab = (window: string, tab: string) => `set miniaturized of ${window} to false
+set selected of ${tab} to true
+set index of ${window} to 1
+activate`;
+
+// Focuses the tab on a tty: argv is the tty.
 const FOCUS_TERMINAL_TAB = `on run argv
 	set target to item 1 of argv
 	if application "Terminal" is not running then error "Terminal is not running"
 	tell application "Terminal"
-		repeat with w in windows
-			set windowTabs to {}
-			try
-				set windowTabs to tabs of w
-			end try
-			repeat with t in windowTabs
-				if tty of t is target then
-					set miniaturized of w to false
-					set selected of t to true
-					set index of w to 1
-					activate
-					return "focused " & target
-				end if
-			end repeat
-		end repeat
+${indent(
+  forEachTab(`if tty of t is target then
+${indent(raiseTab("w", "t"), 1)}
+	return "focused " & target
+end if`),
+  2,
+)}
 	end tell
 	error "no Terminal tab on " & target
 end run`;
@@ -55,15 +75,15 @@ else
 	tell application "Terminal" to activate
 end if`;
 
-// Runs a command in Terminal the way NEW_TERMINAL_TAB opens a shell. `expression` is fixed source
+// Runs a command in Terminal the way NEW_TERMINAL_TAB opens a shell. `commandExpression` is fixed source
 // that builds the command from argv through `quoted form of`; the values never reach this source.
-// A Terminal that isn't running opens its own window at launch: the command runs there rather
-// than in a second window.
-const inTerminal = (expression: string, beforeOpening = "") => `on run argv
-	set command to ${expression}
+// `beforeOpening` runs first, inside the `tell`, and may return to skip opening anything. A Terminal that
+// isn't running opens its own window at launch: the command runs there rather than in a second window.
+const inTerminal = (commandExpression: string, beforeOpening = "") => `on run argv
+	set command to ${commandExpression}
 	if application "Terminal" is running then
 		tell application "Terminal"
-${beforeOpening}			do script command
+${beforeOpening ? `${indent(beforeOpening, 3)}\n` : ""}			do script command
 			activate
 		end tell
 	else
@@ -83,53 +103,53 @@ const RESUME_IN_TERMINAL = inTerminal(
   `"cd " & quoted form of (item 1 of argv) & " && claude --resume " & quoted form of (item 2 of argv)`,
 );
 
+const ATTACH_COMMAND = `"claude attach " & quoted form of (item 1 of argv)`;
+
 // Attaches to a background session: argv is its id.
-const ATTACH_IN_TERMINAL = inTerminal(`"claude attach " & quoted form of (item 1 of argv)`);
+const ATTACH_IN_TERMINAL = inTerminal(ATTACH_COMMAND);
 
 // Same, but first looks for a tab that already shows the session. Claude Code titles its tabs
-// "<status glyph> <session name>", so a tab matches when its custom title is the name (item 2 of
-// argv) or the name after the first two characters. A matching tab (the last one found) is brought to the front and
-// nothing is opened (several usually mean duplicates of this session); none falls through to the attach. The `try` skips
-// windows without tabs, which fail with -1728 when asked for them.
+// "<status glyph> <session name>", so a tab matches when its custom title is the name (item 2 of argv)
+// or the name after the first two characters. If any tab matches (the last one found: several usually
+// mean duplicates of this session) it is brought to the front and nothing is opened; otherwise the
+// attach runs.
 const FOCUS_OR_ATTACH_IN_TERMINAL = inTerminal(
-  `"claude attach " & quoted form of (item 1 of argv)`,
-  `			set wanted to item 2 of argv
-			set matchCount to 0
-			set matchWindow to missing value
-			set matchTab to missing value
-			repeat with w in windows
-				set windowTabs to {}
-				try
-					set windowTabs to tabs of w
-				end try
-				repeat with t in windowTabs
-					set tabTitle to ""
-					try
-						set tabTitle to custom title of t
-					end try
-					set isMatch to (tabTitle is wanted)
-					if not isMatch and (length of tabTitle) > 2 then
-						if character 2 of tabTitle is " " and (text 3 thru -1 of tabTitle) is wanted then set isMatch to true
-					end if
-					if isMatch then
-						set matchCount to matchCount + 1
-						set matchWindow to w
-						set matchTab to t
-					end if
-				end repeat
-			end repeat
-			if matchCount > 0 then
-				set miniaturized of matchWindow to false
-				set selected of matchTab to true
-				set index of matchWindow to 1
-				activate
-				return "focused"
-			end if
-`,
+  ATTACH_COMMAND,
+  `set wanted to item 2 of argv
+set matchCount to 0
+set matchWindow to missing value
+set matchTab to missing value
+${forEachTab(`set tabTitle to ""
+try
+	set tabTitle to custom title of t
+end try
+set isMatch to (tabTitle is wanted)
+if not isMatch and (length of tabTitle) > 2 then
+	if character 2 of tabTitle is " " and (text 3 thru -1 of tabTitle) is wanted then set isMatch to true
+end if
+if isMatch then
+	set matchCount to matchCount + 1
+	set matchWindow to w
+	set matchTab to t
+end if`)}
+if matchCount > 0 then
+${indent(raiseTab("matchWindow", "matchTab"), 1)}
+	return "focused"
+end if`,
 );
 
 /** How `claude agents`, `claude attach` and `claude stop` name a background session: the first 8 characters of its id. */
 export const backgroundId = (sessionId: string) => sessionId.slice(0, 8);
+
+/** What `openSession` knows about the session beyond its id. */
+export interface OpenOptions {
+  /** Where the session last ran. */
+  cwd?: string;
+  /** What `claude agents` says the session is, if known. */
+  kind?: SessionKind;
+  /** The session's title, which Claude Code also uses as its Terminal tab title; not the label the panel shows. */
+  name?: string;
+}
 
 export type OpenResult = { ok: true; command: string[] } | { ok: false; error: string };
 
@@ -202,15 +222,10 @@ export async function planOpen(
     ttyOf = processTty,
     kind,
     name,
-  }: {
-    cwd?: string;
+  }: OpenOptions & {
     liveDir?: string;
     desktopDir?: string;
     ttyOf?: (pid: number) => Promise<string | undefined>;
-    /** What `claude agents` says the session is, if known. */
-    kind?: string;
-    /** The session's name, which Claude Code also uses as its Terminal tab title. */
-    name?: string;
   } = {},
 ): Promise<OpenResult> {
   if (!isSessionId(sessionId)) return { ok: false, error: "invalid session id" };
@@ -223,7 +238,7 @@ export async function planOpen(
   if (live) {
     // Background sessions run in a pty the Claude daemon owns: no tty to focus. A tab may still show
     // them (a plain client), found by title; otherwise attach in a new one.
-    if (kind === "background") {
+    if (kind === BACKGROUND_KIND) {
       const id = backgroundId(sessionId);
       return {
         ok: true,
@@ -239,14 +254,14 @@ export async function planOpen(
   return { ok: true, command: ["osascript", "-e", RESUME_IN_TERMINAL, folder, sessionId] };
 }
 
-export async function openSession(sessionId: string, cwd?: string, kind?: string, name?: string): Promise<OpenResult> {
-  const plan = await planOpen(sessionId, { cwd, kind, name });
+export async function openSession(sessionId: string, options: OpenOptions = {}): Promise<OpenResult> {
+  const plan = await planOpen(sessionId, options);
   return plan.ok ? run(plan.command) : plan;
 }
 
-/** Opens a shell, without Claude, in a new Terminal.app tab (a window unless macOS prefers tabs). */
-export function openTerminalTab(): Promise<OpenResult> {
-  return run(["osascript", "-e", NEW_TERMINAL_TAB]);
+/** Opens a shell, without Claude, in a new Terminal.app tab (a window unless macOS prefers tabs). `runner` is replaceable for tests. */
+export function openTerminalTab(runner: (command: string[]) => Promise<OpenResult> = run): Promise<OpenResult> {
+  return runner(["osascript", "-e", NEW_TERMINAL_TAB]);
 }
 
 /** A hung `claude stop` or osascript (e.g. a beachballed Terminal) must not hold its caller for minutes. */
