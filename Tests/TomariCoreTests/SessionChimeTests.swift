@@ -132,10 +132,10 @@ func sessionChimeTests() {
     }
 
     test("Terminal and the Claude desktop app are where the user reads a session") {
-        expect(SessionChime.isSessionApp("com.apple.Terminal"), "Terminal")
-        expect(SessionChime.isSessionApp("com.anthropic.claudefordesktop"), "Claude desktop app")
-        expect(!SessionChime.isSessionApp("com.anthropic.claude-code"), "the CLI's own id is not an app window")
-        expect(!SessionChime.isSessionApp("com.apple.Safari"), "another app")
-        expect(!SessionChime.isSessionApp(nil), "no frontmost app")
+        expect(FrontAppKind(bundleId: "com.apple.Terminal").showsSessions, "Terminal")
+        expect(FrontAppKind(bundleId: "com.anthropic.claudefordesktop").showsSessions, "Claude desktop app")
+        expect(!FrontAppKind(bundleId: "com.anthropic.claude-code").showsSessions, "the CLI's own id is not an app window")
+        expect(!FrontAppKind(bundleId: "com.apple.Safari").showsSessions, "another app")
+        expect(!FrontAppKind(bundleId: nil).showsSessions, "no frontmost app")
     }
 }

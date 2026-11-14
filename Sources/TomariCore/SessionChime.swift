@@ -14,14 +14,6 @@ public struct SessionChime: Sendable {
     /// Sessions changing within this window of a chime share it.
     public static let burst: TimeInterval = 1
 
-    /// Apps where the user reads a session: Terminal for CLI sessions, the Claude desktop app for its own.
-    private static let sessionApps: Set<String> = ["com.apple.Terminal", "com.anthropic.claudefordesktop"]
-
-    /// Whether the frontmost app (by bundle identifier) is one where the focused session is on screen.
-    public static func isSessionApp(_ bundleIdentifier: String?) -> Bool {
-        bundleIdentifier.map(sessionApps.contains) ?? false
-    }
-
     private var lastChime: Date?
 
     public init() {}
