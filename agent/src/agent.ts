@@ -36,6 +36,8 @@ export async function runAgent({ lan }: { lan: boolean }) {
     current: () => hub.focusedId,
   });
   const pruneTimer = setInterval(() => hub.prune(), 10 * 60 * 1000);
+  // One line per change, so the log shows when Terminal is asked and which focus source applies.
+  front.subscribe((app) => console.log(`${new Date().toLocaleTimeString("en-GB", { hour12: false })}  front app → ${app}`));
 
   hub.subscribe((change) => {
     const time = new Date().toLocaleTimeString("en-GB", { hour12: false });
