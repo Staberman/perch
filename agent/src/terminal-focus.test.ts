@@ -191,3 +191,29 @@ test("a failed ps lookup is retried on the next tick", async () => {
   fail = false;
   expect(await resolve("/dev/ttys003")).toBe(A);
 });
+
+test("a wake-up runs a tick at once instead of waiting out the interval", async () => {
+  let wake = () => {};
+  let runs = 0;
+  const { stop } = setup({
+    intervalMs: 60_000,
+    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    run: async () => {
+      runs++;
+      return "";
+    },
+    wakeOn: (listener) => {
+      wake = listener;
+      return () => {};
+    },
+  });
+  try {
+    await waitFor(() => runs === 1);
+    await Bun.sleep(20);
+    expect(runs).toBe(1); // asleep until the interval
+    wake();
+    await waitFor(() => runs === 2);
+  } finally {
+    stop();
+  }
+});

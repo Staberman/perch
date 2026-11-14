@@ -29,6 +29,8 @@ final class AgentLink {
     @ObservationIgnored private var libraryReply: (([LibraryEntry]) -> Void)?
     @ObservationIgnored private var noticeExpiry: Task<Void, Never>?
     @ObservationIgnored private var doneChime = DoneChime()
+    @ObservationIgnored private var frontReporter = FrontAppReporter()
+    @ObservationIgnored private var frontObserver: NSObjectProtocol?
 
     private static let minRetry: Duration = .seconds(1)
     private static let maxRetry: Duration = .seconds(10)
@@ -37,7 +39,20 @@ final class AgentLink {
     private static let noticeVisible: Duration = .seconds(4)
 
     func start() {
+        // The agent asks Terminal about its tabs only while Terminal is in front, so it needs to be told.
+        frontObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] note in
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            MainActor.assumeIsolated { self?.reportFrontApp(bundleId: app?.bundleIdentifier) }
+        }
         connect()
+    }
+
+    /// Without an argument it asks the system what is in front, as on connecting.
+    private func reportFrontApp(bundleId: String? = NSWorkspace.shared.frontmostApplication?.bundleIdentifier) {
+        guard status == .online, let task, let kind = frontReporter.next(FrontAppKind(bundleId: bundleId)) else { return }
+        task.send(.string(ClientMessage.frontApp(kind).json)) { _ in }
     }
 
     func send(_ message: ClientMessage) {
@@ -75,12 +90,15 @@ final class AgentLink {
             } catch {
                 guard self.task === task else { return }
                 self.task = nil
+                frontReporter.reset()
                 status = .offline
                 return retry()
             }
             guard case .string(let text) = message, let parsed = ServerMessage.parse(text) else { continue }
             // The agent answers a bad token by refusing the upgrade, so any message means we're in.
+            let wasOnline = status == .online
             status = .online
+            if !wasOnline { reportFrontApp() }
             retryDelay = Self.minRetry
             switch parsed {
             case .error(let text):

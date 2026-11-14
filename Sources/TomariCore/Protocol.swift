@@ -186,11 +186,13 @@ public enum ClientMessage: Equatable, Sendable {
     case terminal
     /// Stops a live background session; its conversation is kept.
     case stop(id: String)
+    /// Sent on connect and whenever the app in front changes kind.
+    case frontApp(FrontAppKind)
 
     public var sessionId: String? {
         switch self {
         case .open(let id), .pin(let id, _), .icon(let id, _), .stop(let id): return id
-        case .library, .terminal: return nil
+        case .library, .terminal, .frontApp: return nil
         }
     }
 
@@ -209,6 +211,8 @@ public enum ClientMessage: Equatable, Sendable {
             object = ["type": "terminal"]
         case .stop(let id):
             object = ["type": "stop", "id": id]
+        case .frontApp(let kind):
+            object = ["type": "frontApp", "app": kind.rawValue]
         }
         let body = try! JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
         return String(decoding: body, as: UTF8.self)

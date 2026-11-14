@@ -28,8 +28,10 @@ export interface TerminalFocusOptions {
   current?: () => string | null;
   /** Waits between ticks. Replaceable for tests. */
   sleep?: (ms: number) => Promise<unknown>;
-  /** Polled each tick; false pauses the watcher, e.g. while the desktop app is the focus source. */
+  /** Polled each tick; false skips it without spawning anything, e.g. while Terminal is not in front. */
   enabled?: () => boolean;
+  /** Subscribes `wake` to whatever should end the wait early, e.g. Terminal coming to the front; returns an unsubscribe. */
+  wakeOn?: (wake: () => void) => () => void;
   /** Returns the front tab's tty like "/dev/ttys003", or "" when Terminal isn't in front. Replaceable for tests. */
   run?: () => Promise<string>;
   /** Maps a tty to the live session on it. */
@@ -89,6 +91,7 @@ export function watchTerminalFocus(
     backoffMs = 10_000,
     maxBackoffMs = 60_000,
     enabled = () => true,
+    wakeOn,
     run = runFrontTty,
     sessionForTty = ttyResolver(),
     alive = () => true,
@@ -101,6 +104,12 @@ export function watchTerminalFocus(
   let reported: string | null = null;
   const focused = current ?? (() => reported);
   let failures = 0;
+  let wakeUp: (() => void) | undefined;
+  let woken = false; // a wake-up during a tick must not be lost
+  const unsubscribe = wakeOn?.(() => {
+    woken = true;
+    wakeUp?.();
+  });
 
   (async () => {
     while (!stopped) {
@@ -126,11 +135,15 @@ export function watchTerminalFocus(
           failures++;
         }
       }
-      await sleep(wait);
+      if (!woken) await Promise.race([sleep(wait), new Promise<void>((resolve) => (wakeUp = resolve))]);
+      wakeUp = undefined;
+      woken = false;
     }
   })();
 
   return () => {
     stopped = true;
+    unsubscribe?.();
+    wakeUp?.();
   };
 }

@@ -83,6 +83,10 @@ export type ServerMessage =
   | { type: "library"; sessions: LibraryEntry[] } // reply to a library request, most recent first
   | { type: "error"; message: string };
 
+/** What the overlay says is in front: Terminal.app, the Claude desktop app, or anything else. */
+export const FRONT_APPS = ["terminal", "desktop", "other"] as const;
+export type FrontApp = (typeof FRONT_APPS)[number];
+
 /** `pin` and `icon` also accept a desktop session that isn't running: the agent starts tracking it. */
 export type ClientMessage =
   | { type: "open"; id: string }
@@ -90,4 +94,5 @@ export type ClientMessage =
   | { type: "stop"; id: string } // stops a live background session; its conversation is kept
   | { type: "icon"; id: string; icon: SessionIcon } // pins the session if it isn't yet
   | { type: "library" }
-  | { type: "terminal" }; // opens a shell in a new Terminal.app tab, without Claude
+  | { type: "terminal" } // opens a shell in a new Terminal.app tab, without Claude
+  | { type: "frontApp"; app: FrontApp }; // sent on connect and when the app in front changes, so the agent asks Terminal only while it is in front

@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { ServerMessage } from "../../shared/protocol.ts";
 import type { DesktopSession } from "./desktop-sessions.ts";
+import { FrontApp } from "./front-app.ts";
 import { SessionHub } from "./hub.ts";
 import { planOpen, type OpenResult } from "./open-session.ts";
 import { startServers } from "./server.ts";
@@ -19,6 +20,7 @@ const DESKTOP: DesktopSession[] = [
 
 let servers: ReturnType<typeof startServers>;
 let hub: SessionHub;
+let front: FrontApp;
 let opened: [id: string, cwd: string | undefined, kind: string | undefined, name: string | undefined][];
 let stopped: string[];
 let stop: (id: string) => Promise<OpenResult>;
@@ -35,10 +37,12 @@ beforeEach(() => {
     return { ok: true, command: ["fake-stop", id] };
   };
   hub = new SessionHub(new Store());
+  front = new FrontApp();
   desktopSessions = async () => DESKTOP;
   terminal = async () => ({ ok: true, command: ["fake-terminal"] });
   servers = startServers({
     hub,
+    front,
     token: TOKEN,
     hookPort: 0, // 0 = any free port
     panelPort: 0,
@@ -359,4 +363,29 @@ test("a second stop while the first is still running is ignored, and the id can 
   await waitFor(() => stopped.length === 2);
   finish({ ok: true, command: ["fake-stop", BG] });
   ws.close();
+});
+
+test("a client reports the front app, and it is unknown again once that client leaves", async () => {
+  const { ws, next } = await connect();
+  await next(); // snapshot
+  expect(front.value).toBe("unknown");
+  ws.send(JSON.stringify({ type: "frontApp", app: "terminal" }));
+  await waitFor(() => front.value === "terminal");
+  ws.send(JSON.stringify({ type: "frontApp", app: "other" }));
+  await waitFor(() => front.value === "other");
+  ws.close();
+  await waitFor(() => front.value === "unknown");
+});
+
+test("a client that never reported leaves the front app alone when it disconnects", async () => {
+  const reporter = await connect();
+  await reporter.next();
+  reporter.ws.send(JSON.stringify({ type: "frontApp", app: "desktop" }));
+  await waitFor(() => front.value === "desktop");
+  const viewer = await connect(); // e.g. a Pi panel
+  await viewer.next();
+  viewer.ws.close();
+  await Bun.sleep(50);
+  expect(front.value).toBe("desktop");
+  reporter.ws.close();
 });

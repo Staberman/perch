@@ -405,6 +405,15 @@ describe("parseClientMessage", () => {
     expect(parseClientMessage(JSON.stringify({ type: "terminal", command: "rm -rf ~", id: A }))).toEqual({ type: "terminal" });
   });
 
+  test("frontApp accepts only the known app kinds and is rebuilt from the validated field", () => {
+    for (const app of ["terminal", "desktop", "other"] as const) {
+      expect(parseClientMessage(JSON.stringify({ type: "frontApp", app, id: A, extra: "x" }))).toEqual({ type: "frontApp", app });
+    }
+    for (const app of ["Terminal", "safari", "", 1, null, undefined]) {
+      expect(parseClientMessage(JSON.stringify({ type: "frontApp", app }))).toBeNull();
+    }
+  });
+
   test("rejects everything else", () => {
     const bad = [
       "not json",

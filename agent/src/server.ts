@@ -12,9 +12,12 @@ import { openSession, openTerminalTab, type OpenOptions, type OpenResult } from 
 import { parseClientMessage } from "./protocol-guard.ts";
 import { stopSession } from "./stop-session.ts";
 import type { HookEvent } from "./state.ts";
+import { FrontApp } from "./front-app.ts";
 
 export interface ServerOptions {
   hub: SessionHub;
+  /** Where clients' reports of the app in front are kept. */
+  front?: FrontApp;
   token: string;
   hookPort: number;
   panelPort: number;
@@ -40,6 +43,7 @@ const LIBRARY_SIZE = 100;
 
 export function startServers({
   hub,
+  front = new FrontApp(),
   token,
   hookPort,
   panelPort,
@@ -99,7 +103,7 @@ export function startServers({
     send(ws, { type: "error", message: "the command failed on the Mac" });
   }
 
-  const panelServer = Bun.serve<{ local: boolean }>({
+  const panelServer = Bun.serve<{ local: boolean; reportedFront: boolean }>({
     hostname: panelHost,
     port: panelPort,
     fetch(req, server) {
@@ -107,7 +111,7 @@ export function startServers({
       if (url.pathname === "/health") return Response.json({ ok: true, sessions: hub.snapshot().length });
       if (url.pathname !== "/ws") return new Response("not found", { status: 404 });
       if (!sameSecret(url.searchParams.get("token"), token)) return new Response("unauthorized", { status: 401 });
-      if (server.upgrade(req, { data: { local: isLocal(server.requestIP(req)?.address) } })) return;
+      if (server.upgrade(req, { data: { local: isLocal(server.requestIP(req)?.address), reportedFront: false } })) return;
       return new Response("expected a WebSocket", { status: 400 });
     },
     websocket: {
@@ -122,6 +126,11 @@ export function startServers({
           const msg = parseClientMessage(String(raw));
           if (!msg) return send(ws, { type: "error", message: "invalid message" });
           if (msg.type === "library") return send(ws, { type: "library", sessions: await library() });
+          if (msg.type === "frontApp") {
+            ws.data.reportedFront = true;
+            front.set(msg.app);
+            return;
+          }
           if (msg.type === "terminal") {
             const result = await terminal();
             if (!result.ok) failed(ws, result.error);
@@ -170,6 +179,7 @@ export function startServers({
       },
       close(ws) {
         ws.unsubscribe(TOPIC);
+        if (ws.data.reportedFront) front.set("unknown"); // its report is stale now; ask Terminal again until someone says
       },
     },
   });

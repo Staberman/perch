@@ -1,4 +1,4 @@
-import type { ClientMessage, SessionIcon } from "../../shared/protocol.ts";
+import { FRONT_APPS, type ClientMessage, type SessionIcon } from "../../shared/protocol.ts";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CHARACTER = /^[a-z0-9-]{1,32}$/;
@@ -31,6 +31,10 @@ export function parseClientMessage(raw: string): ClientMessage | null {
   if (typeof msg !== "object" || msg === null) return null;
   if (msg.type === "library") return { type: "library" };
   if (msg.type === "terminal") return { type: "terminal" };
+  if (msg.type === "frontApp") {
+    const app = FRONT_APPS.find((known) => known === msg.app);
+    return app ? { type: "frontApp", app } : null;
+  }
   if (!isSessionId(msg.id)) return null;
 
   switch (msg.type) {
