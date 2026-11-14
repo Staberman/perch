@@ -11,7 +11,7 @@
  */
 import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { DESKTOP_SESSIONS_DIR, findDesktopSession, hasDesktopApp } from "./desktop-sessions.ts";
+import { DESKTOP_SESSIONS_DIR, findDesktopSession } from "./desktop-sessions.ts";
 import { BACKGROUND_KIND, type SessionKind } from "../../shared/protocol.ts";
 import { isSessionId } from "./protocol-guard.ts";
 
@@ -249,7 +249,7 @@ export async function planOpen(
     if (tty && TTY.test(tty)) return { ok: true, command: ["osascript", "-e", FOCUS_TERMINAL_TAB, `/dev/${tty}`] };
     return { ok: false, error: `running outside the desktop app (${live.entrypoint}, pid ${live.pid}): open it in its terminal` };
   }
-  if (hasDesktopApp(desktopDir)) return { ok: true, command: ["claude", "--desktop", "--resume", sessionId] };
+  // A closed session the desktop app doesn't know was born in a terminal: resume it there, even with the app installed.
   const folder = cwd || (await recordedCwd(sessionId, liveDir)) || desktop?.cwd || homedir();
   return { ok: true, command: ["osascript", "-e", RESUME_IN_TERMINAL, folder, sessionId] };
 }
