@@ -1,7 +1,7 @@
 import { PANEL_PORT } from "../../shared/protocol.ts";
 import { HOOK_PORT, loadConfig, panelUrls } from "./config.ts";
 import { watchDesktopFocus } from "./desktop-focus.ts";
-import { desktopPresent } from "./desktop-sessions.ts";
+import { FocusArbiter } from "./focus-arbiter.ts";
 import { FrontApp } from "./front-app.ts";
 import { SessionHub } from "./hub.ts";
 import { startPoller } from "./poller.ts";
@@ -25,11 +25,12 @@ export async function runAgent({ lan }: { lan: boolean }) {
     panelHost: lan ? "0.0.0.0" : "127.0.0.1",
   });
   const stopPoller = startPoller(hub);
-  const stopFocus = watchDesktopFocus((id) => hub.setFocused(id));
-  // Terminal sessions have no desktop log to tail; with the desktop app present, its log stays the only source.
+  // Both focus sources coexist: the one for the app in front wins, and the other waits (see FocusArbiter).
+  const arbiter = new FocusArbiter(front, (id) => hub.setFocused(id));
+  const stopFocus = watchDesktopFocus((id) => arbiter.desktop(id));
   // osascript only runs while Terminal is in front (or no overlay has said), and Terminal coming to the front ticks at once.
   const stopTerminalFocus = watchTerminalFocus((id) => hub.setFocused(id), {
-    enabled: () => !desktopPresent() && front.terminalMayRun(),
+    enabled: () => front.terminalMayRun(),
     wakeOn: (wake) => front.subscribe((app) => app === "terminal" && wake()),
     alive: (id) => hub.get(id)?.live ?? false,
     current: () => hub.focusedId,
