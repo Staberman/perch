@@ -4,8 +4,8 @@
  *   `claude://code/continue?session=local_…`; the app restarts the session if needed. The app ignores that
  *   link for the session it already counts as focused, even while it shows something else, so then it first
  *   goes through `claude://code/needs-input`, which lets go of the focus.
- * - Unknown to the app and closed: `claude --desktop --resume <id>` (documented, CLI ≥ 2.1.285).
- *   Without the desktop app: `claude --resume <id>` in a new Terminal.app tab, in the session's folder.
+ * - Unknown to the app and closed: it was born in a terminal, so `claude --resume <id>` in a new
+ *   Terminal.app tab, in the session's folder, whether or not the app is installed.
  * - A live background session (`claude --bg`): focuses a Terminal tab already titled with its name,
  *   else `claude attach` in a new tab.
  * - Running in a terminal: brings the Terminal.app tab on its tty to the front. Without a tty it is
@@ -17,7 +17,7 @@
  */
 import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { DESKTOP_SESSIONS_DIR, findDesktopSession, hasDesktopApp } from "./desktop-sessions.ts";
+import { DESKTOP_SESSIONS_DIR, findDesktopSession } from "./desktop-sessions.ts";
 import { BACKGROUND_KIND, type SessionAgent, type SessionKind } from "../../shared/protocol.ts";
 import { startedInCodexApp } from "./codex.ts";
 import { isSessionId } from "./protocol-guard.ts";
@@ -293,7 +293,6 @@ export async function planOpen(
     if (tty && TTY.test(tty)) return { ok: true, command: ["osascript", "-e", FOCUS_TERMINAL_TAB, `/dev/${tty}`] };
     return { ok: false, error: `running outside the desktop app (${live.entrypoint}, pid ${live.pid}): open it in its terminal` };
   }
-  if (hasDesktopApp(desktopDir)) return { ok: true, command: ["claude", "--desktop", "--resume", sessionId] };
   const folder = cwd || (await recordedCwd(sessionId, liveDir)) || desktop?.cwd || homedir();
   return { ok: true, command: ["osascript", "-e", RESUME_IN_TERMINAL, folder, sessionId] };
 }
