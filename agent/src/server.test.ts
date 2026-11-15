@@ -6,7 +6,7 @@ import type { DesktopSession } from "./desktop-sessions.ts";
 import { FrontApp } from "./front-app.ts";
 import { SessionHub } from "./hub.ts";
 import { planOpen, type OpenResult } from "./open-session.ts";
-import { startServers } from "./server.ts";
+import { openLogLine, startServers } from "./server.ts";
 import { Store } from "./store.ts";
 
 const ID = "0603472f-b7c5-4dae-b7a1-142468264b30";
@@ -362,4 +362,17 @@ test("a client that never reported leaves the front app alone when it disconnect
   await Bun.sleep(50);
   expect(front.value).toBe("desktop");
   reporter.ws.close();
+});
+
+test("openLogLine: one line per open request, without paths", () => {
+  const id = "0123456789abcdef";
+  expect(openLogLine(id, { ok: true, command: ["open", "claude://x"] })).toBe("open 01234567: ok");
+  expect(openLogLine(id, { ok: false, error: "no Terminal tab on /dev/ttys004\nat line 2" })).toBe(
+    "open 01234567: no Terminal tab on <path>",
+  );
+  expect(openLogLine(id, { ok: false, error: "cd: /Users/someone/Projects/demo: not found" })).toBe(
+    "open 01234567: cd: <path> not found",
+  );
+  expect(openLogLine(id, { ok: false, error: "x".repeat(300) })).toBe(`open 01234567: ${"x".repeat(120)}`);
+  expect(openLogLine(id, { ok: false, error: "" })).toBe("open 01234567: ");
 });
