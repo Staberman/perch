@@ -1,6 +1,7 @@
 import { PANEL_PORT } from "../../shared/protocol.ts";
 import { HOOK_PORT, loadConfig } from "./config.ts";
 import { watchDesktopFocus } from "./desktop-focus.ts";
+import { indexDesktopSessions } from "./desktop-sessions.ts";
 import { FocusArbiter } from "./focus-arbiter.ts";
 import { FrontApp } from "./front-app.ts";
 import { SessionHub } from "./hub.ts";
@@ -17,16 +18,18 @@ export async function runAgent() {
   const store = new Store(config.dbPath);
   const hub = new SessionHub(store, Date.now, (id, transcriptPath) => firstPrompt(id, { transcriptPath }));
   const front = new FrontApp();
+  // Both focus sources coexist: the one for the app in front wins, and the other waits (see FocusArbiter).
+  const arbiter = new FocusArbiter(front, (id) => hub.setFocused(id));
   const servers = startServers({
     hub,
     front,
     token: config.token,
     hookPort: HOOK_PORT,
     panelPort: PANEL_PORT,
+    desktopFocus: () => arbiter.desktopFocus,
   });
   const stopPoller = startPoller(hub);
-  // Both focus sources coexist: the one for the app in front wins, and the other waits (see FocusArbiter).
-  const arbiter = new FocusArbiter(front, (id) => hub.setFocused(id));
+  void indexDesktopSessions().catch(() => {}); // so the first click doesn't wait on a scan of every session file
   const stopFocus = watchDesktopFocus((id) => arbiter.desktop(id));
   // osascript only runs while Terminal is in front (or no overlay has said), and Terminal coming to the front ticks at once.
   const stopTerminalFocus = watchTerminalFocus((id) => hub.setFocused(id), {

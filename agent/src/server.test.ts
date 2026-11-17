@@ -370,6 +370,48 @@ test("a client that never reported leaves the front app alone when it disconnect
   reporter.ws.close();
 });
 
+test("openLogLine: how long an open took, and when it went through needs-input", () => {
+  const id = "0123456789abcdef";
+  expect(openLogLine(id, { ok: true, command: ["open", "x"] }, 84)).toBe("open 01234567: ok · 84ms");
+  expect(openLogLine(id, { ok: true, command: ["open", "x"], before: ["open", "y"] }, 612)).toBe("open 01234567: ok via needs-input · 612ms");
+  expect(openLogLine(id, { ok: false, error: "timed out" }, 15000)).toBe("open 01234567: timed out · 15000ms");
+});
+
+test("opening the session the desktop app counts as focused, with the app in front, asks for the detour", async () => {
+  let focused: string | null = ID;
+  const seen: (boolean | undefined)[] = [];
+  servers.stop();
+  servers = startServers({
+    hub,
+    front,
+    token: TOKEN,
+    hookPort: 0,
+    panelPort: 0,
+    open: async (id, options = {}) => (seen.push(options.focusedInDesktop), { ok: true, command: ["fake-open", id] }),
+    desktopSessions: async () => DESKTOP,
+    codexLibrary: async () => [],
+    desktopFocus: () => focused,
+  });
+  await postHook({ hook_event_name: "Stop", session_id: ID, cwd: "/tmp/demo" });
+  const { ws, next } = await connect();
+  await next(); // snapshot
+  const openIt = async () => {
+    ws.send(JSON.stringify({ type: "open", id: ID }));
+    while (seen.length < count + 1) await Bun.sleep(2);
+    count++;
+  };
+  let count = 0;
+  front.set("desktop");
+  await openIt(); // focused there, app in front: detour
+  front.set("other");
+  await openIt(); // app behind: a plain link brings it forward
+  front.set("desktop");
+  focused = IDLE;
+  await openIt(); // another session focused there: plain link
+  expect(seen).toEqual([true, false, false]);
+  ws.close();
+});
+
 test("openLogLine: one line per open request, without paths", () => {
   const id = "0123456789abcdef";
   expect(openLogLine(id, { ok: true, command: ["open", "claude://x"] })).toBe("open 01234567: ok");

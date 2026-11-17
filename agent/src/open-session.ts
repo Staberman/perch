@@ -1,7 +1,9 @@
 /**
  * Opens a session in the Claude desktop app.
  * - Known to the app (running or stopped while idle): navigate with the undocumented
- *   `claude://code/continue?session=local_…`; the app restarts the session if needed.
+ *   `claude://code/continue?session=local_…`; the app restarts the session if needed. The app ignores that
+ *   link for the session it already counts as focused, even while it shows something else, so then it first
+ *   goes through `claude://code/needs-input`, which lets go of the focus.
  * - Unknown to the app and closed: `claude --desktop --resume <id>` (documented, CLI ≥ 2.1.285).
  *   Without the desktop app: `claude --resume <id>` in a new Terminal.app tab, in the session's folder.
  * - A live background session (`claude --bg`): focuses a Terminal tab already titled with its name,
@@ -165,9 +167,16 @@ export interface OpenOptions {
   pid?: number | null;
   /** Codex: the rollout path its hooks reported, if any. */
   transcriptPath?: string;
+  /** The desktop app is in front and counts this session as its focused one, so a plain link would do nothing. */
+  focusedInDesktop?: boolean;
 }
 
-export type OpenResult = { ok: true; command: string[] } | { ok: false; error: string };
+/** `before`, when set, runs first, and `command` follows once the app has had `REFOCUS_DELAY_MS` to act on it. */
+export type OpenResult = { ok: true; command: string[]; before?: string[] } | { ok: false; error: string };
+
+/** A link that moves the desktop app off its focused session, so the next link to that session is acted on. */
+export const RELEASE_DESKTOP_FOCUS = ["open", "claude://code/needs-input?source=tomari"];
+export const REFOCUS_DELAY_MS = 500;
 
 interface LiveSession {
   pid: number;
@@ -241,6 +250,7 @@ export async function planOpen(
     agent,
     pid,
     transcriptPath,
+    focusedInDesktop = false,
     alive = isAlive,
     inCodexApp = startedInCodexApp,
   }: OpenOptions & {
@@ -265,7 +275,8 @@ export async function planOpen(
 
   const desktop = await findDesktopSession(sessionId, desktopDir);
   if (desktop && LOCAL_ID.test(desktop.localId)) {
-    return { ok: true, command: ["open", `claude://code/continue?session=${desktop.localId}`] };
+    const command = ["open", `claude://code/continue?session=${desktop.localId}`];
+    return focusedInDesktop ? { ok: true, command, before: RELEASE_DESKTOP_FOCUS } : { ok: true, command };
   }
   const live = await findLive(sessionId, liveDir);
   if (live) {
@@ -287,9 +298,19 @@ export async function planOpen(
   return { ok: true, command: ["osascript", "-e", RESUME_IN_TERMINAL, folder, sessionId] };
 }
 
-export async function openSession(sessionId: string, options: OpenOptions = {}): Promise<OpenResult> {
+export async function openSession(
+  sessionId: string,
+  options: Parameters<typeof planOpen>[1] = {},
+  runner: (command: string[]) => Promise<OpenResult> = run,
+  sleep: (ms: number) => Promise<unknown> = Bun.sleep,
+): Promise<OpenResult> {
   const plan = await planOpen(sessionId, options);
-  return plan.ok ? run(plan.command) : plan;
+  if (!plan.ok) return plan;
+  if (plan.before) {
+    await runner(plan.before); // if it fails, the link below still brings the app to the front
+    await sleep(REFOCUS_DELAY_MS);
+  }
+  return runner(plan.command);
 }
 
 /** Opens a shell, without Claude, in a new Terminal.app tab (a window unless macOS prefers tabs). `runner` is replaceable for tests. */

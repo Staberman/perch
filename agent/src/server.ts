@@ -29,6 +29,8 @@ export interface ServerOptions {
   desktopSessions?: () => Promise<DesktopSession[]>;
   /** Maps the pid a Codex hook reports to the Codex process; replaceable so tests don't run `ps`. */
   codexPid?: (reported: number) => Promise<number | null>;
+  /** The session the desktop app counts as focused, from its log, or null; opening it again needs a detour. */
+  desktopFocus?: () => string | null;
   /** Whether a Codex event belongs to a session worth tracking; replaceable so tests don't need rollouts. */
   admitCodex?: (event: HookEvent, known: boolean) => Promise<boolean>;
   /** Codex's threads, running or not; replaceable so tests don't read Codex's database. */
@@ -50,6 +52,7 @@ export function startServers({
   desktopSessions = desktopSessionsLister(),
   codexPid = codexPidResolver(),
   admitCodex = codexAdmission(),
+  desktopFocus = () => null,
   codexLibrary = () => codexThreads(),
 }: ServerOptions) {
   /**
@@ -176,14 +179,16 @@ export function startServers({
           switch (msg.type) {
             case "open": {
               const session = hub.get(msg.id);
+              const started = Date.now();
               const result = await open(msg.id, {
                 cwd: session?.cwd,
                 kind: session?.kind,
                 name: hub.titleOf(msg.id) ?? undefined,
                 agent: session?.agent,
                 ...hub.openContext(msg.id),
+                focusedInDesktop: front.value === "desktop" && desktopFocus() === msg.id,
               });
-              console.error(openLogLine(msg.id, result));
+              console.error(openLogLine(msg.id, result, Date.now() - started));
               // The desktop log confirms focus a moment later; show it right away.
               if (result.ok) hub.setFocused(msg.id);
               else send(ws, { type: "error", message: result.error });
@@ -241,10 +246,11 @@ export function startServers({
  * One log line per open request, to tell why a session didn't come to the front. No prompt text, and no
  * paths: an error can hold local paths, so any word with a slash becomes `<path>`.
  */
-export function openLogLine(id: string, result: OpenResult): string {
-  if (result.ok) return `open ${id.slice(0, 8)}: ok`;
+export function openLogLine(id: string, result: OpenResult, ms?: number): string {
+  const took = ms === undefined ? "" : ` · ${ms}ms`;
+  if (result.ok) return `open ${id.slice(0, 8)}: ok${result.before ? " via needs-input" : ""}${took}`;
   const firstLine = result.error.split("\n")[0] ?? "";
-  return `open ${id.slice(0, 8)}: ${firstLine.replace(/\S*\/\S*/g, "<path>").slice(0, 120)}`;
+  return `open ${id.slice(0, 8)}: ${firstLine.replace(/\S*\/\S*/g, "<path>").slice(0, 120)}${took}`;
 }
 
 function send(ws: { send(data: string): unknown }, message: ServerMessage) {
