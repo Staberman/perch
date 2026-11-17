@@ -16,7 +16,7 @@ import SectionHeader from "./SectionHeader.astro";
         features.map((f, i) => (
           <li data-reveal>
             <article class="card">
-              <Creature {...f.creature} bare unit="2.25px" outline="#4a3a36" offset={i * 3} label="" class="icon" />
+              <Creature {...f.creature} agent={f.creature.agent ?? "claude"} bare unit="2.25px" outline="#4a3a36" offset={i * 3} label="" class="icon" />
               <h3>{f.title}</h3>
               <p set:html={f.text} />
             </article>

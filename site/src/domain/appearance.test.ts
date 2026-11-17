@@ -1,5 +1,7 @@
 import { expect, test } from "bun:test";
 import { creatureLook, statusLine, statusTone } from "./appearance.ts";
+import { characters } from "./characters.ts";
+import { spriteFrame, type Mood } from "./sprite.ts";
 import { characterNamed } from "./characters.ts";
 
 const critter = characterNamed("default");
@@ -47,4 +49,25 @@ test("an outline rings the creature, marks included, for light backgrounds", () 
   const ringed = creatureLook({ character: critter, color: "#d97757", state: "working", frame: 0, outline: ink });
   expect(plain.pixels.flat()).not.toContain(ink);
   expect(ringed.pixels[4]![17]).toBe(ink);
+});
+
+test("a badge names the agent in the top-left corner and changes nothing else", () => {
+  const plain = look("working");
+  const codex = creatureLook({ character: critter, color: "#d97757", state: "working", frame: 0, agent: "codex" });
+  const claude = creatureLook({ character: critter, color: "#d97757", state: "working", frame: 0, agent: "claude" });
+  expect(codex.pixels[0]![0]).toBe("#e8e8e8");
+  expect(claude.pixels[0]![2]).toBe("#d97757");
+  for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) if (x >= 5 || y >= 5) expect(codex.pixels[y]![x]).toBe(plain.pixels[y]![x]!);
+  const closed = creatureLook({ character: critter, color: "#d97757", state: "closed", frame: 0, agent: "claude" });
+  expect(closed.pixels[0]![2]).not.toBe("#d97757"); // grayed with the rest
+});
+
+test("no character, mood or frame draws in the badge's corner", () => {
+  const moods: Mood[] = ["idle", "working", "alert", "asking", "compacting", "error", "sleeping", "finished"];
+  for (const character of characters)
+    for (const mood of moods)
+      for (let frame = 0; frame < 16; frame++) {
+        const pixels = spriteFrame(character, "#d97757", mood, frame);
+        for (let y = 0; y < 5; y++) for (let x = 0; x < 5; x++) expect(pixels[y]![x]).toBeNull();
+      }
 });

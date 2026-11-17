@@ -1,4 +1,4 @@
-import { needsAttention, statusLine, statusTone } from "../domain/appearance.ts";
+import { agentLabels, needsAttention, statusLine, statusTone } from "../domain/appearance.ts";
 import { demoScript, demoSessions, demoStill, permissionChoices, type CursorTarget, type DemoSession, type DemoStep } from "../data/demo.ts";
 import { prefersReducedMotion, wait } from "../lib/clock.ts";
 
@@ -179,7 +179,7 @@ export class TomariDemo extends HTMLElement {
 
   private showLabel(s: DemoSession) {
     const label = this.find("[data-label]");
-    this.find("[data-label-name]").textContent = s.name;
+    this.find("[data-label-name]").textContent = `${s.name} · ${agentLabels[s.agent ?? "claude"]}`;
     this.find("[data-label-status]").textContent = statusLine(s);
     label.dataset["tone"] = statusTone(s.state);
     label.dataset["for"] = s.id;

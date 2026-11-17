@@ -72,6 +72,24 @@ function tileFor(state: SessionState, frame: number, focused: boolean): Tile {
   }
 }
 
+/** The coding agent behind a session, which its creature's badge names. */
+export type Agent = "claude" | "codex";
+
+export const agentLabels: Record<Agent, string> = { claude: "Claude", codex: "Codex" };
+
+/** As AgentBadge in Appearance.swift: a mark in the sprite's top-left corner, which no character or mood draws in. */
+const badges: Record<Agent, { rows: readonly string[]; color: Hex }> = {
+  claude: { rows: ["..X..", "X.X.X", ".XXX.", "X.X.X", "..X.."], color: "#d97757" }, // a spark
+  codex: { rows: ["X....", ".X...", "X.XXX"], color: "#e8e8e8" }, // a prompt, >_
+};
+
+export function badged(pixels: Pixels, agent: Agent): Pixels {
+  const { rows, color } = badges[agent];
+  const out = pixels.map((row) => [...row]);
+  rows.forEach((row, y) => [...row].forEach((cell, x) => cell === "X" && (out[y]![x] = color)));
+  return out;
+}
+
 export interface CreatureSpec {
   character: CharacterTemplate;
   color: Hex;
@@ -80,12 +98,15 @@ export interface CreatureSpec {
   focused?: boolean;
   /** Rings the whole creature in this color, so white marks still show on a light page. */
   outline?: Hex;
+  /** Draws this agent's badge; none without it. */
+  agent?: Agent;
 }
 
-export function creatureLook({ character, color, state, frame, focused = false, outline }: CreatureSpec): Look {
+export function creatureLook({ character, color, state, frame, focused = false, outline, agent }: CreatureSpec): Look {
   const info = states[state];
   let pixels = spriteFrame(character, color, info.mood, frame);
   if (needsAttention(state)) pixels = outlined(pixels);
+  if (agent) pixels = badged(pixels, agent);
   if (info.closed) pixels = grayscaled(pixels);
   if (outline) pixels = outlined(pixels, outline);
   return { pixels, tile: tileFor(state, frame, focused), opacity: info.closed ? 0.45 : 1 };

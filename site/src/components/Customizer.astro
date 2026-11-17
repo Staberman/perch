@@ -14,7 +14,7 @@ const initial = { character: defaultIcon.character, color: defaultIcon.color, st
     <div class="stage" data-reveal>
       <span class="glow" aria-hidden="true"></span>
       <span class="window">
-        <Creature data-stage character={initial.character} color={initial.color} state={initial.state} unit="clamp(5px, 0.8vw, 8.5px)" label="Your creature" />
+        <Creature data-stage character={initial.character} color={initial.color} state={initial.state} agent="claude" unit="clamp(5px, 0.8vw, 8.5px)" label="Your creature" />
       </span>
       <p class="status" data-status aria-live="polite">{statusLine({ state: initial.state, activity: "Bash: npm run build" })}</p>
     </div>
@@ -31,7 +31,7 @@ const initial = { character: defaultIcon.character, color: defaultIcon.color, st
           {
             characters.map((c) => (
               <button type="button" class="chip" data-choice="character" data-value={c.id} aria-pressed={c.id === initial.character ? "true" : "false"}>
-                <Creature character={c.id} color="#8c8490" state="idle" bare unit="1.25px" label="" />
+                <Creature character={c.id} color="#8c8490" state="idle" bare unit="1.25px" agent="none" label="" />
                 {c.label}
               </button>
             ))

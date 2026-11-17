@@ -5,6 +5,7 @@ export const installOutput: readonly { tone: "ok" | "dim"; text: string }[] = [
   { tone: "dim", text: "  data     : ~/Library/Application Support/tomari" },
   { tone: "dim", text: "  logs     : ~/Library/Logs/tomari" },
   { tone: "dim", text: "  hooks    : added to ~/.claude/settings.json" },
+  { tone: "dim", text: "  codex    : hooks added to ~/.codex/hooks.json" },
 ];
 
 /** HTML: may hold <code>. */
@@ -12,6 +13,7 @@ export const requirements: readonly string[] = [
   "macOS 14 or newer",
   "The Claude desktop app, with sessions in its Code tab",
   "Claude Code CLI 2.1.285 or newer",
+  "For Codex sessions: Codex 0.146 or newer, CLI or app",
   "Node.js 18 or newer, for <code>npx</code>",
 ];
 
