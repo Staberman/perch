@@ -3,7 +3,7 @@ import { sections } from "../data/site.ts";
 import SectionHeader from "./SectionHeader.astro";
 
 const nodes = [
-  { tag: "hooks", name: "Claude Code", text: "Every prompt, tool call and stop, straight from your sessions." },
+  { tag: "hooks", name: "Claude Code · Codex", text: "Every prompt, tool call and stop, straight from your sessions." },
   { tag: "127.0.0.1", name: "tomari agent", text: "Tracks each session's state, keeps your pins and opens sessions.", main: true },
   { tag: "WebSocket + token", name: "tomari-overlay", text: "The strip and the menu bar item. Native, and only a few megabytes." },
 ];
@@ -20,7 +20,7 @@ const stats = [
   <div class="container">
     <SectionHeader {...sections.how}>
       <Fragment slot="title">Small pieces, all <em>on your Mac</em>.</Fragment>
-      Claude Code reports every event to a small local agent through hooks. The strip listens to the agent and draws the creatures.
+      Claude Code and Codex report every event to a small local agent through their hooks. The strip listens to the agent and draws the creatures.
     </SectionHeader>
 
     <ol class="flow" data-reveal>

@@ -1,17 +1,18 @@
-import { creatureLook, states, type SessionState } from "../domain/appearance.ts";
+import { agentLabels, creatureLook, states, type Agent, type SessionState } from "../domain/appearance.ts";
 import { characterNamed } from "../domain/characters.ts";
 import { SPRITE_SIZE } from "../domain/sprite.ts";
 import { currentFrame, onFrame } from "../lib/clock.ts";
 import { putPixels } from "../lib/paint.ts";
 
 const isState = (value: string | null): value is SessionState => value != null && value in states;
+const isAgent = (value: string | null): value is Agent => value != null && value in agentLabels;
 
 /**
- * <tomari-creature character="robot" color="#3ccfe6" state="working" focused offset="3" outline="#3b3238">
+ * <tomari-creature character="robot" color="#3ccfe6" state="working" focused offset="3" outline="#3b3238" agent="codex">
  * Animates the creature its server-rendered SVG shows, while it's on screen. Change it through its attributes.
  */
 export class TomariCreature extends HTMLElement {
-  static observedAttributes = ["character", "color", "state", "focused", "outline"];
+  static observedAttributes = ["character", "color", "state", "focused", "outline", "agent"];
 
   private canvas = document.createElement("canvas");
   private stop: (() => void) | undefined;
@@ -39,6 +40,7 @@ export class TomariCreature extends HTMLElement {
 
   private draw(frame = currentFrame()) {
     const state = this.getAttribute("state");
+    const agent = this.getAttribute("agent");
     const look = creatureLook({
       character: characterNamed(this.getAttribute("character") ?? "default"),
       color: this.getAttribute("color") ?? "#d97757",
@@ -46,6 +48,7 @@ export class TomariCreature extends HTMLElement {
       frame: frame + Number(this.getAttribute("offset") ?? 0),
       focused: this.hasAttribute("focused"),
       ...(this.hasAttribute("outline") && { outline: this.getAttribute("outline")! }),
+      ...(isAgent(agent) && { agent }),
     });
     putPixels(this.canvas, look.pixels);
     this.canvas.style.opacity = String(look.opacity);

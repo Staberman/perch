@@ -1,6 +1,6 @@
 ---
 import type { HTMLAttributes } from "astro/types";
-import { creatureLook, states, type SessionState } from "../domain/appearance.ts";
+import { creatureLook, states, type Agent, type SessionState } from "../domain/appearance.ts";
 import { characterNamed } from "../domain/characters.ts";
 import { SPRITE_SIZE } from "../domain/sprite.ts";
 import { pixelRects } from "../lib/pixel-svg.ts";
@@ -16,14 +16,17 @@ interface Props extends Omit<HTMLAttributes<"span">, "class" | "style" | "role">
   unit?: string;
   /** Rings the creature in this color, for creatures drawn straight on the light page. */
   outline?: string;
+  /** The agent its badge names, for a creature that stands for a session; none by default, for a decorative one. */
+  agent?: Agent | "none";
   /** Frames to shift its animation by, so neighbours don't move in lockstep. */
   offset?: number;
   label?: string;
   class?: string;
 }
 
-const { character = "default", color = "#d97757", state = "idle", focused = false, bare = false, unit = "2px", outline, offset = 0, label, class: className, ...attributes } = Astro.props;
-const look = creatureLook({ character: characterNamed(character), color, state, frame: 1 + offset, focused, ...(outline && { outline }) });
+const { character = "default", color = "#d97757", state = "idle", focused = false, bare = false, unit = "2px", outline, agent = "none", offset = 0, label, class: className, ...attributes } = Astro.props;
+const badge = agent === "none" ? undefined : agent;
+const look = creatureLook({ character: characterNamed(character), color, state, frame: 1 + offset, focused, ...(outline && { outline }), ...(badge && { agent: badge }) });
 const style = [
   `--u: ${unit}`,
   `--tile-fill: ${look.tile.fill ?? "transparent"}`,
@@ -43,6 +46,7 @@ const name = label ?? `${characterNamed(character).label}, ${states[state].label
   focused={focused || undefined}
   offset={offset || undefined}
   outline={outline}
+  agent={badge}
   style={style}
   role={name ? "img" : undefined}
   aria-label={name || undefined}

@@ -3,9 +3,9 @@ const repo = "elrincondeldev/tomari";
 export const site = {
   name: "Tomari",
   repo,
-  title: "Tomari · Your Claude Code sessions, perched on your screen",
+  title: "Tomari · Your Claude Code and Codex sessions, perched on your screen",
   description:
-    "Tomari puts one animated pixel-art creature per Claude Code session on the edge of your Mac's screen. See which ones work, which need you and which are done, and click one to jump back in.",
+    "Tomari puts one animated pixel-art creature per Claude Code or Codex session on the edge of your Mac's screen. See which ones work, which need you and which are done, and click one to jump back in.",
   installCommand: "npx tomari setup",
   links: {
     repo: `https://github.com/${repo}`,
@@ -14,7 +14,7 @@ export const site = {
     claudePanel: "https://github.com/elrincondeldev/claude-panel",
   },
   disclaimer:
-    "Tomari is not an official Anthropic project and is not affiliated with or endorsed by Anthropic. “Claude” is a trademark of Anthropic, PBC.",
+    "Tomari is not an official Anthropic or OpenAI project and is not affiliated with or endorsed by either. “Claude” is a trademark of Anthropic, PBC; “Codex” is a trademark of OpenAI.",
 } as const;
 
 /** Each section's number and its name in Japanese, written in brush calligraphy. */

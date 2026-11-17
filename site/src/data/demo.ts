@@ -1,4 +1,4 @@
-import type { SessionState } from "../domain/appearance.ts";
+import type { Agent, SessionState } from "../domain/appearance.ts";
 
 export interface DemoSession {
   id: string;
@@ -10,6 +10,8 @@ export interface DemoSession {
   /** How long ago it reached its state, for its status line. */
   ago?: string;
   prompt: string;
+  /** The agent running it; Claude Code when absent. */
+  agent?: Agent;
   /** The two answers its window offers when it asks you something: the second is the one you pick. */
   choices?: readonly [string, string];
 }
@@ -21,8 +23,8 @@ export const demoSessions: readonly DemoSession[] = [
   { id: "web", name: "landing-page", character: "default", color: "#d97757", state: "working", activity: "Edit: Hero.astro", prompt: "Make the hero feel calmer" },
   { id: "auth", name: "fix-auth", character: "ghost", color: "#4f7cff", state: "working", activity: "Read: session.ts", prompt: "Why do tokens expire early?" },
   { id: "api", name: "api-server", character: "robot", color: "#3ccfe6", state: "working", activity: "Bash: npm test", prompt: "Make the flaky checkout test pass", choices: ["jest", "vitest"] },
-  { id: "docs", name: "docs", character: "cat", color: "#a66cff", state: "working", activity: "Write: README.md", prompt: "Document the new CLI flags" },
-  { id: "db", name: "refactor-db", character: "default", color: "#4cd964", state: "sleeping", ago: "2h", prompt: "Split the orders table" },
+  { id: "docs", name: "docs", character: "cat", color: "#a66cff", state: "working", activity: "Edit: cli.md", prompt: "Document the new CLI flags", agent: "codex" },
+  { id: "db", name: "refactor-db", character: "robot", color: "#4cd964", state: "sleeping", ago: "2h", prompt: "Split the orders table", agent: "codex" },
 ];
 
 /** Where the pretend cursor can go: a session's creature, or the main button of the open session's question. */

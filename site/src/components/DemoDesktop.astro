@@ -12,7 +12,7 @@ const chevron = ["...X", "..XX", ".XX.", "XX..", ".XX.", "..XX", "...X"];
     <span class="menus"><b>Claude</b><span>File</span><span>Edit</span><span>View</span><span>Window</span></span>
     <span class="status">
       <span class="menu-item" data-menu-item>
-        <Creature character="default" color="#3b3640" state="idle" bare unit="0.75px" label="" />
+        <Creature character="default" color="#3b3640" state="idle" bare unit="0.75px" agent="none" label="" />
         <span data-waiting></span>
       </span>
       <span>Thu 9:41</span>
@@ -63,7 +63,7 @@ const chevron = ["...X", "..XX", ".XX.", "XX..", ".XX.", "..XX", "...X"];
         {
           demoSessions.map((s, i) => (
             <span class="cell" data-cell={s.id}>
-              <Creature character={s.character} color={s.color} state={s.state} focused={i === 0} offset={i * 3} unit="var(--cell-u)" label={`${s.name}: ${statusLine(s)}`} />
+              <Creature character={s.character} color={s.color} state={s.state} agent={s.agent ?? "claude"} focused={i === 0} offset={i * 3} unit="var(--cell-u)" label={`${s.name}: ${statusLine(s)}`} />
             </span>
           ))
         }

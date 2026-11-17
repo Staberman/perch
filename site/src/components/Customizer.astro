@@ -14,7 +14,7 @@ const initial = { character: defaultIcon.character, color: defaultIcon.color, st
     <div class="stage" data-reveal>
       <span class="glow" aria-hidden="true"></span>
       <span class="window">
-        <Creature data-stage character={initial.character} color={initial.color} state={initial.state} unit="clamp(5px, 0.8vw, 8.5px)" label="Your creature" />
+        <Creature data-stage character={initial.character} color={initial.color} state={initial.state} agent="claude" unit="clamp(5px, 0.8vw, 8.5px)" label="Your creature" />
       </span>
       <p class="status" data-status aria-live="polite">{statusLine({ state: initial.state, activity: "Bash: npm run build" })}</p>
     </div>
@@ -31,7 +31,7 @@ const initial = { character: defaultIcon.character, color: defaultIcon.color, st
           {
             characters.map((c) => (
               <button type="button" class="chip" data-choice="character" data-value={c.id} aria-pressed={c.id === initial.character ? "true" : "false"}>
-                <Creature character={c.id} color="#8c8490" state="idle" bare unit="1.25px" label="" />
+                <Creature character={c.id} color="#8c8490" state="idle" bare unit="1.25px" agent="none" label="" />
                 {c.label}
               </button>
             ))
@@ -232,6 +232,46 @@ const initial = { character: defaultIcon.character, color: defaultIcon.color, st
       width: 100%;
       max-width: 480px;
       margin-inline: auto;
+    }
+  }
+
+  /*
+   * Stacked, the controls sit below the creature, so on a phone a tap changed it off screen. Here the title
+   * comes first, then the creature stays pinned under the site header, smaller, while the choices scroll under it.
+   */
+  @media (max-width: 1060px) and (min-height: 560px) {
+    .layout {
+      gap: 22px;
+    }
+
+    .controls {
+      display: contents;
+    }
+
+    .controls :global(.head) {
+      order: -2;
+      margin-bottom: 0;
+    }
+
+    .stage {
+      order: -1;
+      position: sticky;
+      top: 82px;
+      z-index: 2;
+      align-self: start;
+      max-width: 220px;
+      border-radius: 28px;
+      box-shadow: 0 18px 40px -24px rgba(43, 39, 48, 0.55);
+    }
+
+    .window {
+      box-shadow: 0 0 0 6px rgba(255, 253, 248, 0.9);
+    }
+
+    .status {
+      bottom: 12px;
+      padding: 4px 10px;
+      font-size: 0.72rem;
     }
   }
 </style>

@@ -20,7 +20,7 @@ import SectionHeader from "./SectionHeader.astro";
             <article class="card">
             <span class="kanji" lang="ja">{card.kanji}</span>
             <span class="stage">
-              <Creature character={card.character} color={card.color} state={card.state} offset={i * 2} unit="var(--card-u)" />
+              <Creature character={card.character} color={card.color} state={card.state} agent="claude" offset={i * 2} unit="var(--card-u)" />
             </span>
             <h3>{states[card.state].label}</h3>
             <p>{card.text}</p>

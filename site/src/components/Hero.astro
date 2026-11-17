@@ -7,7 +7,7 @@ import Petals from "./Petals.astro";
 
 // Each word rises into place on its own, so the headline is split here rather than by script.
 const headline: { word: string; accent?: true }[] = [
-  ...["Your", "Claude", "Code", "sessions,"].map((word) => ({ word })),
+  ...["Your", "Claude", "Code", "and", "Codex", "sessions,"].map((word) => ({ word })),
   { word: "perched", accent: true },
   ...["on", "the", "edge", "of", "your", "screen."].map((word) => ({ word })),
 ];
@@ -46,7 +46,7 @@ const headline: { word: string; accent?: true }[] = [
       </h1>
 
       <p class="lede">
-        One pixel-art creature per session, resting on the edge of your Mac. It hops while Claude works, calls out when it needs you and holds up a check when it's done. Click it, and you're back in that session.
+        One pixel-art creature per session, resting on the edge of your Mac. It hops while the agent works, calls out when it needs you and holds up a check when it's done. Click it, and you're back in that session.
       </p>
 
       <div class="cta">
