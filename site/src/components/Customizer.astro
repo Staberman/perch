@@ -234,4 +234,44 @@ const initial = { character: defaultIcon.character, color: defaultIcon.color, st
       margin-inline: auto;
     }
   }
+
+  /*
+   * Stacked, the controls sit below the creature, so on a phone a tap changed it off screen. Here the title
+   * comes first, then the creature stays pinned under the site header, smaller, while the choices scroll under it.
+   */
+  @media (max-width: 1060px) and (min-height: 560px) {
+    .layout {
+      gap: 22px;
+    }
+
+    .controls {
+      display: contents;
+    }
+
+    .controls :global(.head) {
+      order: -2;
+      margin-bottom: 0;
+    }
+
+    .stage {
+      order: -1;
+      position: sticky;
+      top: 82px;
+      z-index: 2;
+      align-self: start;
+      max-width: 220px;
+      border-radius: 28px;
+      box-shadow: 0 18px 40px -24px rgba(43, 39, 48, 0.55);
+    }
+
+    .window {
+      box-shadow: 0 0 0 6px rgba(255, 253, 248, 0.9);
+    }
+
+    .status {
+      bottom: 12px;
+      padding: 4px 10px;
+      font-size: 0.72rem;
+    }
+  }
 </style>
