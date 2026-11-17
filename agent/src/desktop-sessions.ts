@@ -59,8 +59,34 @@ export async function listDesktopSessions(dir = DESKTOP_SESSIONS_DIR): Promise<D
   return sessions.sort((a, b) => b.lastActivityAt - a.lastActivityAt);
 }
 
+/** Per sessions dir: CLI session id → its metadata file. A session's file never moves, so a click reads one file. */
+const knownFiles = new Map<string, Map<string, string>>();
+
+/**
+ * The desktop session for a CLI session id. Reads the one file remembered for it, and scans the whole dir
+ * (hundreds of files) only when there is none yet or it no longer holds that session.
+ */
 export async function findDesktopSession(sessionId: string, dir = DESKTOP_SESSIONS_DIR): Promise<DesktopSession | undefined> {
-  return (await listDesktopSessions(dir)).find((s) => s.sessionId === sessionId);
+  const known = knownFiles.get(dir)?.get(sessionId);
+  if (known) {
+    const session = parse(await Bun.file(known).json().catch(() => null));
+    if (session?.sessionId === sessionId) return session;
+  }
+  return (await indexDesktopSessions(dir)).find((s) => s.sessionId === sessionId);
+}
+
+/** Scans the dir once and remembers each session's file; the agent runs it at start so the first click is quick too. */
+export async function indexDesktopSessions(dir = DESKTOP_SESSIONS_DIR): Promise<DesktopSession[]> {
+  const files = new Map<string, string>();
+  const sessions: DesktopSession[] = [];
+  for await (const path of scan("*/*/local_*.json", dir)) {
+    const session = parse(await Bun.file(path).json().catch(() => null));
+    if (!session) continue;
+    files.set(session.sessionId, path);
+    sessions.push(session);
+  }
+  knownFiles.set(dir, files);
+  return sessions;
 }
 
 /** CLI session id of a desktop `local_…` session. */

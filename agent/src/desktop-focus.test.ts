@@ -118,3 +118,18 @@ test("a missing log is checked rarely, and still picked up once it appears", asy
     stop();
   }
 });
+
+test("a desktop session's file is remembered: later lookups read it alone, and a moved or gone session scans again", async () => {
+  expect(await findDesktopSession(CLI_A, sessionsDir)).toMatchObject({ title: "Panel" });
+  const file = `${sessionsDir}/account/org/${LOCAL_A}.json`;
+  // Rewritten in place, as the app does on each activity: the remembered file is read again.
+  writeFileSync(file, JSON.stringify({ sessionId: LOCAL_A, cliSessionId: CLI_A, title: "Renamed", cwd: "/Users/dev/panel" }));
+  expect(await findDesktopSession(CLI_A, sessionsDir)).toMatchObject({ title: "Renamed" });
+  // Moved to another org folder: the remembered file is gone, so the dir is scanned again.
+  mkdirSync(`${sessionsDir}/account/other`, { recursive: true });
+  writeFileSync(`${sessionsDir}/account/other/${LOCAL_A}.json`, JSON.stringify({ sessionId: LOCAL_A, cliSessionId: CLI_A, title: "Moved" }));
+  rmSync(file);
+  expect(await findDesktopSession(CLI_A, sessionsDir)).toMatchObject({ title: "Moved" });
+  rmSync(`${sessionsDir}/account/other/${LOCAL_A}.json`);
+  expect(await findDesktopSession(CLI_A, sessionsDir)).toBeUndefined();
+});

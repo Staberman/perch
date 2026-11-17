@@ -1,6 +1,7 @@
 import { PANEL_PORT } from "../../shared/protocol.ts";
 import { HOOK_PORT, loadConfig } from "./config.ts";
 import { watchDesktopFocus } from "./desktop-focus.ts";
+import { indexDesktopSessions } from "./desktop-sessions.ts";
 import { FocusArbiter } from "./focus-arbiter.ts";
 import { FrontApp } from "./front-app.ts";
 import { SessionHub } from "./hub.ts";
@@ -25,6 +26,7 @@ export async function runAgent() {
     panelPort: PANEL_PORT,
   });
   const stopPoller = startPoller(hub);
+  void indexDesktopSessions().catch(() => {}); // so the first click doesn't wait on a scan of every session file
   // Both focus sources coexist: the one for the app in front wins, and the other waits (see FocusArbiter).
   const arbiter = new FocusArbiter(front, (id) => hub.setFocused(id));
   const stopFocus = watchDesktopFocus((id) => arbiter.desktop(id));
