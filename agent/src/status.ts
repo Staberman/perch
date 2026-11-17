@@ -2,6 +2,7 @@ import { PANEL_PORT } from "../../shared/protocol.ts";
 import { BIN_DIR, LOG_DIR } from "./config.ts";
 import { describe, tomariJobs } from "./launchd.ts";
 import { hooksInstalled } from "./settings.ts";
+import { codexHooksInstalled, hasCodex } from "./codex.ts";
 
 export async function status(version: string) {
   const [agent, overlay] = tomariJobs({ binDir: BIN_DIR, logDir: LOG_DIR });
@@ -11,7 +12,7 @@ export async function status(version: string) {
   console.log(`tomari ${version}
   agent   : ${await describe(agent!.label)}
   overlay : ${await describe(overlay!.label)}
-  hooks   : ${(await hooksInstalled()) ? "installed" : "not installed"}
+  hooks   : ${(await hooksInstalled()) ? "installed" : "not installed"}${hasCodex() ? `\n  codex   : ${(await codexHooksInstalled()) ? "hooks installed (trust them with /hooks in Codex)" : "hooks not installed"}` : ""}
   health  : ${health ? `answering, ${health.sessions} sessions` : `no answer on :${PANEL_PORT}`}
   logs    : ${LOG_DIR}`);
 }

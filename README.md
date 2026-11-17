@@ -20,6 +20,7 @@ That's all: the strip appears on the right edge with a **+** to pin your session
 
 - copies Tomari's binaries into `~/Library/Application Support/tomari/bin`;
 - adds hooks to `~/.claude/settings.json`, after backing it up, so Claude Code reports each event to Tomari's agent;
+- if you use [Codex](#codex), adds the same hooks to `~/.codex/hooks.json`, also after a backup;
 - starts the agent and the strip now and at every login, as LaunchAgents;
 - replaces [claude-panel](https://github.com/elrincondeldev/claude-panel)'s agent if you have it, keeping its pinned sessions and their looks;
 - moves an install from when Tomari was called Perch (`@elrincondeldev/perch`) into Tomari's places, keeping its pins, icons and token.
@@ -33,10 +34,10 @@ You need the Claude desktop app (sessions in its Code tab), the Claude Code CLI 
 
 ## Features
 
-- **The sessions you choose**: the **+** at the end of the strip lists every session in the Claude desktop app, recent or old, running or stopped, plus the running sessions Tomari sees in your terminals; pick one to pin it. Its last item, **New Terminal tab**, opens a plain shell in Terminal.app, without Claude: a tab of the front window when macOS is set to prefer tabs, a new window otherwise. Sessions you haven't pinned show up only while they work or wait for you, and for five minutes after they finish, so a fresh install starts with just the +.
+- **The sessions you choose**: the **+** at the end of the strip lists every session in the Claude desktop app and every Codex thread, recent or old, running or stopped, plus the running sessions Tomari sees in your terminals, in a panel with a **Claude** and a **Codex** tab; pick one to pin it, or unpin it. Type to filter by name or folder (accents and case don't matter; each tab's count shows its matches), ↑↓ to move, Tab to switch tabs, Return to pin and Esc to close. The panel takes the keyboard without bringing Tomari to the front, and closes when you click elsewhere. Its last item, **New Terminal tab**, opens a plain shell in Terminal.app, without Claude: a tab of the front window when macOS is set to prefer tabs, a new window otherwise. Sessions you haven't pinned show up only while they work or wait for you, and for five minutes after they finish, so a fresh install starts with just the +.
 - **One creature per session**, animated by its state: working, needs permission, asking you, compacting, done, error or closed. Finished sessions fall asleep after five minutes.
 - **Hard to miss when it needs you**: a permission request blinks the creature's tile in orange; a question rings it in orange. A working creature hops with typing dots over its head, and one that finished its turn holds up a green check, ringed in green, until you reply or it falls asleep.
-- **Hover** for the session's name and status, e.g. `Bash: npm test · 4m` or `done · 5m`; while a session works or waits, the time is how long it has been in that state (`waiting for you · 2m`, `working · 1h 5m`).
+- **Hover** for the session's name, agent and status, e.g. `Bash: npm test · 4m` or `done · 5m`; while a session works or waits, the time is how long it has been in that state (`waiting for you · 2m`, `working · 1h 5m`).
 - **Click** to open the session in the Claude desktop app, even one the app has stopped. A session running in Terminal.app brings its tab to the front instead. Without the desktop app, a closed session resumes with `claude --resume` in a new Terminal tab, in the folder where it ran. The session in front is ringed in white.
 - **Which session is in front**: while Terminal is in front, the selected Terminal tab decides; while the Claude desktop app is in front, the session it shows does; with any other app in front the ring stays where it was. The first time Terminal is in front, macOS asks to let Tomari control Terminal, which it uses to read which tab is selected; Tomari doesn't ask Terminal anything while another app is in front.
 - **Background sessions** (`claude --bg`) run in a terminal the Claude daemon owns, so clicking one attaches it with `claude attach` in a new Terminal tab. Right-click one and choose **Stop session** to run `claude stop` (it asks first if the session is busy); the conversation is kept.
@@ -45,6 +46,8 @@ You need the Claude desktop app (sessions in its Code tab), the Claude Code CLI 
 - **Sound when waiting for you**: off by default; turn it on from the menu bar icon to hear a different chime (Ping) when a session starts needing your permission or input. Same rules as the done chime: quiet for the session you are looking at.
 - **Color by project**: off by default; turn it on from the menu bar icon to give each project its own color, so sessions in the same folder (or the same repo, for Claude worktrees under `.claude/worktrees`) look alike. It only applies to creatures still in the default color; one you colored yourself keeps its color.
 - **Stays out of the way**: the strip floats over every Space and full-screen app and never takes focus from the app you're using. The arrow tab beside it slides the strip off the edge, leaving just the tab, which blinks orange when a session needs you; click it again to bring the strip back.
+- **Codex too**: sessions of OpenAI's Codex CLI and Codex app show up next to Claude Code's, as a robot. See [Codex](#codex).
+- **Which agent, at a glance**: every creature carries its agent's badge in its top-left corner: a small clay spark for Claude Code, a small `>_` for Codex. The hover label ends with the agent, e.g. `api · Claude` or `api · Codex`.
 - **Menu bar item** to show or hide the strip, move it to the left or right edge, and see how many sessions are waiting for you. Quit Tomari there; it starts again at your next login.
 
 ## How it works
@@ -68,6 +71,28 @@ claude agents ─ poll ─▶  └ SQLite: pins, icons
 | `setFocusedSession` in `~/Library/Logs/Claude/main.log` | Which session is in front | No |
 
 If a Claude update breaks an undocumented source, only the feature it feeds stops working.
+
+## Codex
+
+Tomari follows [Codex](https://developers.openai.com/codex) sessions, in its CLI and in its desktop app, through Codex's own [hooks](https://developers.openai.com/codex/hooks), which report the same events as Claude Code's. It needs Codex 0.146 or newer.
+
+- `npx tomari setup` adds Tomari's hooks to `~/.codex/hooks.json` (or `$CODEX_HOME/hooks.json`) when Codex is installed, and `uninstall` removes them; your own hooks there stay. If your `config.toml` declares hooks itself, setup leaves Codex alone, since Codex warns when one place declares hooks in both files: copy the `hooks` block of a `hooks.json` that setup wrote elsewhere into it as TOML.
+- **Trust them once**: Codex runs a new hook only after you review it. Open Codex, type `/hooks` and trust Tomari's. Until then its sessions don't show up. Tomari never marks them trusted for you.
+- The Codex app also runs hooks for sessions you never see: the empty thread it opens ahead of "New thread", and a short one that writes each thread's title. Tomari tracks a Codex session only once it does something besides starting or ending and has a rollout in `~/.codex/sessions`, so those never reach the strip.
+- A Codex session waits for you on a permission request (`PermissionRequest`) and finishes its turn on `Stop`. Its name is the thread's title from `~/.codex/session_index.jsonl`, or its folder.
+- Like a Claude Code session in a terminal, a Codex session you haven't pinned leaves the strip when it ends, e.g. when you quit Codex. Pin it from the + to keep it: a pinned closed thread stays, grayed, and a click reopens it.
+- **Click**: a thread the Codex app started opens there (`codex://threads/<id>`); a running CLI session brings its Terminal tab to the front; a closed one resumes with `codex resume <id>` in a new Terminal tab, in its folder.
+- Codex has no `claude agents`: the hook reports the pid of the shell's parent, the agent walks up to the `codex` process, and the session ends when that process does, or on `SessionEnd`.
+
+| What the agent reads from Codex | Used for | Documented? |
+|---|---|---|
+| Hooks in `~/.codex/hooks.json` | State changes, and the pid of the Codex process | Yes |
+| `~/.codex/session_index.jsonl` | Thread titles | No |
+| The first line of a thread's rollout in `~/.codex/sessions/` | Whether the Codex app started it | No |
+| `~/.codex/state_<n>.sqlite`, read only | The Codex threads the + lists, running or not | No |
+| `~/.codex/external_agent_session_imports.json` | Which Codex threads are Claude Code sessions Codex imported, left out of the Codex list | No |
+| `codex://threads/<id>` | Opening a thread in the Codex app | No |
+| `codex resume <id>` | Reopening a closed CLI session | Yes |
 
 ## Customizing the creatures
 

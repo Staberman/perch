@@ -52,10 +52,12 @@ public struct PanelSession: Equatable, Identifiable, Sendable {
     public var icon: SessionIcon
     /// "interactive" or "background" (run by the Claude daemon, no terminal of its own); nil until the agent knows.
     public var kind: String?
+    /// The coding agent running the session, such as "codex"; nil means Claude Code.
+    public var agent: String?
 
     public init(
         id: String, name: String, cwd: String, state: SessionState, activity: String?, live: Bool,
-        stateSince: Date, pinned: Bool, position: Int?, icon: SessionIcon, kind: String? = nil
+        stateSince: Date, pinned: Bool, position: Int?, icon: SessionIcon, kind: String? = nil, agent: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -68,12 +70,13 @@ public struct PanelSession: Equatable, Identifiable, Sendable {
         self.position = position
         self.icon = icon
         self.kind = kind
+        self.agent = agent
     }
 }
 
 extension PanelSession: Decodable {
     private enum Keys: String, CodingKey {
-        case id, name, cwd, state, activity, live, stateSince, pinned, position, icon, kind
+        case id, name, cwd, state, activity, live, stateSince, pinned, position, icon, kind, agent
     }
 
     public init(from decoder: Decoder) throws {
@@ -90,7 +93,8 @@ extension PanelSession: Decodable {
             pinned: try c.decode(Bool.self, forKey: .pinned),
             position: try c.decodeIfPresent(Int.self, forKey: .position),
             icon: try c.decode(SessionIcon.self, forKey: .icon),
-            kind: try? c.decodeIfPresent(String.self, forKey: .kind)
+            kind: try? c.decodeIfPresent(String.self, forKey: .kind),
+            agent: try? c.decodeIfPresent(String.self, forKey: .agent)
         )
     }
 }
@@ -102,16 +106,19 @@ public struct LibraryEntry: Equatable, Sendable, Decodable {
     public var cwd: String
     public var lastActivityAt: Date
     public var pinned: Bool
+    /// The coding agent running the session, such as "codex"; nil means Claude Code.
+    public var agent: String?
 
-    public init(id: String, name: String, cwd: String, lastActivityAt: Date, pinned: Bool) {
+    public init(id: String, name: String, cwd: String, lastActivityAt: Date, pinned: Bool, agent: String? = nil) {
         self.id = id
         self.name = name
         self.cwd = cwd
         self.lastActivityAt = lastActivityAt
         self.pinned = pinned
+        self.agent = agent
     }
 
-    private enum Keys: String, CodingKey { case id, name, cwd, lastActivityAt, pinned }
+    private enum Keys: String, CodingKey { case id, name, cwd, lastActivityAt, pinned, agent }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: Keys.self)
@@ -121,7 +128,8 @@ public struct LibraryEntry: Equatable, Sendable, Decodable {
             name: try c.decode(String.self, forKey: .name),
             cwd: try c.decode(String.self, forKey: .cwd),
             lastActivityAt: Date(timeIntervalSince1970: lastActivityEpochMs / 1000),
-            pinned: try c.decode(Bool.self, forKey: .pinned)
+            pinned: try c.decode(Bool.self, forKey: .pinned),
+            agent: try? c.decodeIfPresent(String.self, forKey: .agent)
         )
     }
 }

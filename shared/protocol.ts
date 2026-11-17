@@ -35,6 +35,12 @@ export type SessionKind = "interactive" | "background" | (string & {});
 /** The Claude daemon's own sessions (`--bg`, `claude agents`): no terminal tty to focus. */
 export const BACKGROUND_KIND = "background" satisfies SessionKind;
 
+/** The coding agent that runs a session. Clients must treat other values as unknown. */
+export type SessionAgent = "claude" | "codex" | (string & {});
+
+/** Sessions of an agent other than Claude Code start as this character, so they stand apart on the strip. */
+export const CODEX_ICON: SessionIcon = { character: "robot", color: DEFAULT_ICON.color };
+
 export interface PanelSession {
   id: string;
   name: string;
@@ -55,9 +61,11 @@ export interface PanelSession {
    * Absent until the poll has seen the session. Clients must treat other values as unknown.
    */
   kind?: SessionKind;
+  /** Which agent runs the session; absent means Claude Code. */
+  agent?: SessionAgent;
 }
 
-/** A desktop-app session the panel can pin, running or not. */
+/** A session the panel can pin, running or not: the Claude app's, Codex's, or one running in a terminal. */
 export interface LibraryEntry {
   id: string;
   name: string;
@@ -65,6 +73,8 @@ export interface LibraryEntry {
   /** Epoch ms of its last activity. */
   lastActivityAt: number;
   pinned: boolean;
+  /** Which agent runs the session; absent means Claude Code. */
+  agent?: SessionAgent;
 }
 
 export type ServerMessage =
@@ -72,7 +82,7 @@ export type ServerMessage =
   | { type: "session"; session: PanelSession }
   | { type: "removed"; id: string }
   | { type: "focus"; id: string | null } // the session in front in the desktop app; null when none
-  | { type: "library"; sessions: LibraryEntry[] } // reply to a library request, most recent first
+  | { type: "library"; sessions: LibraryEntry[] } // reply to a library request, most recent first, up to 100 per agent
   | { type: "error"; message: string };
 
 /** What the overlay says is in front: Terminal.app, the Claude desktop app, or anything else. */

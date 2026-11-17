@@ -37,6 +37,49 @@ public struct Tile: Equatable, Sendable {
     }
 }
 
+/// A mark in the sprite's top-left corner, a corner no character or state overlay uses, that names the
+/// agent running the session at a glance.
+public enum AgentBadge: Hashable, Sendable {
+    case claude, codex, other
+
+    public init(agent: String?) {
+        switch agent {
+        case nil, "claude": self = .claude
+        case "codex": self = .codex
+        default: self = .other
+        }
+    }
+
+    var rows: [String] {
+        switch self {
+        case .claude: return ["..X..", "X.X.X", ".XXX.", "X.X.X", "..X.."] // a spark
+        case .codex: return ["X....", ".X...", "X.XXX"] // a prompt, >_
+        case .other: return ["XX", "XX"]
+        }
+    }
+
+    var color: RGB {
+        switch self {
+        case .claude: return RGB(hex: "#d97757")!
+        case .codex: return RGB(hex: "#e8e8e8")!
+        case .other: return RGB(hex: "#8b909a")!
+        }
+    }
+
+    /// The badge alone, for places outside the strip such as the + menu.
+    public var pixels: Pixels {
+        rows.map { row in row.map { $0 == "X" ? color : nil } }
+    }
+
+    func drawn(on pixels: Pixels) -> Pixels {
+        var pixels = pixels
+        for (y, row) in rows.enumerated() {
+            for (x, cell) in row.enumerated() where cell == "X" { pixels[y][x] = color }
+        }
+        return pixels
+    }
+}
+
 public struct CreatureAppearance: Equatable, Sendable {
     public let pixels: Pixels
     public let tile: Tile
@@ -80,7 +123,7 @@ public struct CreatureAppearance: Equatable, Sendable {
         return CreatureAppearance(pixels: pixels, tile: tile, opacity: 1)
     }
 
-    public init(session: PanelSession, focused: Bool, hovered: Bool, frame: Int, now: Date) {
+    public init(session: PanelSession, focused: Bool, hovered: Bool, frame: Int, now: Date, badge: AgentBadge? = nil) {
         var tile = Tile()
         if hovered { tile.fill = .white(0.12) }
         if focused {
@@ -92,6 +135,7 @@ public struct CreatureAppearance: Equatable, Sendable {
         var pixels = spriteFrame(character: session.icon.character, color: session.icon.tint, mood: session.mood(at: now), frame: frame)
         // An accent tile may share the sprite's color.
         if session.needsAttention { pixels = outlined(pixels) }
+        if let badge { pixels = badge.drawn(on: pixels) }
         if !session.live { pixels = grayscaled(pixels) }
 
         self.pixels = pixels

@@ -426,3 +426,37 @@ describe("parseClientMessage", () => {
     for (const raw of bad) expect(parseClientMessage(raw)).toBeNull();
   });
 });
+
+describe("Codex sessions", () => {
+  const codex = { agent: "codex", pid: 4242 } as const;
+
+  test("start as the robot, tell the panel they are Codex's, and keep the robot when pinned", () => {
+    const { hub } = setup();
+    hub.handleHook(ev(A, "UserPromptSubmit"), codex);
+    hub.handleHook(ev(B, "UserPromptSubmit"));
+    expect(hub.get(A)).toMatchObject({ agent: "codex", icon: { character: "robot" } });
+    expect(hub.get(B)!.agent).toBeUndefined();
+    expect(hub.get(B)!.icon.character).toBe("default");
+    hub.setPinned(A, true);
+    expect(hub.get(A)!.icon.character).toBe("robot");
+  });
+
+  test("take their thread title from Codex, which never renames a Claude Code session", () => {
+    const { hub } = setup();
+    hub.handleHook(ev(A, "UserPromptSubmit"), codex);
+    hub.handleHook(ev(B, "UserPromptSubmit"));
+    hub.handleCodexNames(new Map([[A, "Fix the login bug"], [B, "not for Claude"]]));
+    expect(hub.get(A)!.name).toBe("Fix the login bug");
+    expect(hub.get(B)!.name).toBe("claude-panel");
+  });
+
+  test("are known by their pid for tty focus, and end when it dies", () => {
+    const { hub } = setup();
+    hub.handleHook(ev(A, "UserPromptSubmit"), codex);
+    expect(hub.codexPids()).toEqual(new Map([[A, 4242]]));
+    expect(hub.openContext(A).pid).toBe(4242);
+    hub.endDead((pid) => pid !== 4242);
+    expect(hub.get(A)).toMatchObject({ state: "ended", live: false });
+    expect(hub.codexPids().size).toBe(0);
+  });
+});
