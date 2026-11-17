@@ -163,3 +163,34 @@ test("a new Terminal tab runs a fixed script with no arguments", async () => {
   expect(command.slice(0, 2)).toEqual(["osascript", "-e"]);
   expect(command).toHaveLength(3);
 });
+
+const CODEX = "01a19325-4897-7c80-a727-4efd4c245bf1";
+const notInApp = async () => false;
+
+test("Codex: a thread the Codex app started opens there", async () => {
+  expect(await planOpen(CODEX, { agent: "codex", inCodexApp: async () => true, pid: process.pid })).toEqual({
+    ok: true,
+    command: ["open", `codex://threads/${CODEX}`],
+  });
+});
+
+test("Codex: a running session brings its Terminal tab to the front", async () => {
+  const plan = await planOpen(CODEX, { agent: "codex", inCodexApp: notInApp, pid: 4242, alive: () => true, ttyOf: async () => "ttys007" });
+  if (!plan.ok) throw new Error(plan.error);
+  expect(plan.command[0]).toBe("osascript");
+  expect(plan.command.at(-1)).toBe("/dev/ttys007");
+});
+
+test("Codex: a running session without a terminal is refused rather than resumed twice", async () => {
+  const plan = await planOpen(CODEX, { agent: "codex", inCodexApp: notInApp, pid: 4242, alive: () => true, ttyOf: async () => "??" });
+  expect(plan.ok).toBe(false);
+});
+
+test("Codex: a closed session resumes with codex resume in its folder, passed only as argv", async () => {
+  const plan = await planOpen(CODEX, { agent: "codex", inCodexApp: notInApp, pid: 4242, alive: () => false, cwd: "/Users/dev/it's odd" });
+  if (!plan.ok) throw new Error(plan.error);
+  expect(plan.command[0]).toBe("osascript");
+  expect(plan.command[2]).toContain("codex resume");
+  expect(plan.command.slice(-2)).toEqual(["/Users/dev/it's odd", CODEX]);
+  expect(plan.command[2]).not.toContain("odd");
+});

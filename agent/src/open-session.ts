@@ -8,11 +8,16 @@
  *   else `claude attach` in a new tab.
  * - Running in a terminal: brings the Terminal.app tab on its tty to the front. Without a tty it is
  *   refused, since resuming it would start a second process on the same conversation.
+ *
+ * A Codex session opens the same way, with Codex's pieces: a thread the Codex app started opens there
+ * (`codex://threads/<id>`), a running one brings its Terminal tab to the front, and a closed one resumes
+ * with `codex resume <id>` in a new Terminal tab, in its folder.
  */
 import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { DESKTOP_SESSIONS_DIR, findDesktopSession, hasDesktopApp } from "./desktop-sessions.ts";
-import { BACKGROUND_KIND, type SessionKind } from "../../shared/protocol.ts";
+import { BACKGROUND_KIND, type SessionAgent, type SessionKind } from "../../shared/protocol.ts";
+import { startedInCodexApp } from "./codex.ts";
 import { isSessionId } from "./protocol-guard.ts";
 
 const LOCAL_ID = /^local_[A-Za-z0-9-]{1,64}$/;
@@ -103,6 +108,11 @@ const RESUME_IN_TERMINAL = inTerminal(
   `"cd " & quoted form of (item 1 of argv) & " && claude --resume " & quoted form of (item 2 of argv)`,
 );
 
+// Resumes a closed Codex session, in its folder: argv is the folder, then the session id.
+const RESUME_CODEX_IN_TERMINAL = inTerminal(
+  `"cd " & quoted form of (item 1 of argv) & " && codex resume " & quoted form of (item 2 of argv)`,
+);
+
 const ATTACH_COMMAND = `"claude attach " & quoted form of (item 1 of argv)`;
 
 // Attaches to a background session: argv is its id.
@@ -149,6 +159,12 @@ export interface OpenOptions {
   kind?: SessionKind;
   /** The session's title, which Claude Code also uses as its Terminal tab title; not the label the panel shows. */
   name?: string;
+  /** The agent running the session; absent means Claude Code. */
+  agent?: SessionAgent;
+  /** Codex: the process its hooks reported, if any. */
+  pid?: number | null;
+  /** Codex: the rollout path its hooks reported, if any. */
+  transcriptPath?: string;
 }
 
 export type OpenResult = { ok: true; command: string[] } | { ok: false; error: string };
@@ -222,13 +238,30 @@ export async function planOpen(
     ttyOf = processTty,
     kind,
     name,
+    agent,
+    pid,
+    transcriptPath,
+    alive = isAlive,
+    inCodexApp = startedInCodexApp,
   }: OpenOptions & {
     liveDir?: string;
     desktopDir?: string;
     ttyOf?: (pid: number) => Promise<string | undefined>;
+    alive?: (pid: number) => boolean;
+    inCodexApp?: (sessionId: string, transcriptPath?: string) => Promise<boolean>;
   } = {},
 ): Promise<OpenResult> {
   if (!isSessionId(sessionId)) return { ok: false, error: "invalid session id" };
+
+  if (agent === "codex") {
+    if (await inCodexApp(sessionId, transcriptPath)) return { ok: true, command: ["open", `codex://threads/${sessionId}`] };
+    if (pid != null && alive(pid)) {
+      const tty = await ttyOf(pid);
+      if (tty && TTY.test(tty)) return { ok: true, command: ["osascript", "-e", FOCUS_TERMINAL_TAB, `/dev/${tty}`] };
+      return { ok: false, error: `Codex is running without a terminal (pid ${pid}): open it where it runs` };
+    }
+    return { ok: true, command: ["osascript", "-e", RESUME_CODEX_IN_TERMINAL, cwd || homedir(), sessionId] };
+  }
 
   const desktop = await findDesktopSession(sessionId, desktopDir);
   if (desktop && LOCAL_ID.test(desktop.localId)) {

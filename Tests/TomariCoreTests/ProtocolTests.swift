@@ -107,6 +107,23 @@ func protocolTests() {
         expectEqual(b.kind, nil)
     }
 
+    test("decodes the session's agent, and a message without one is Claude Code") {
+        let codex = sessionJSON.replacingOccurrences(of: #""icon":"#, with: #""agent":"codex","icon":"#)
+        guard case .session(let a)? = ServerMessage.parse(#"{"type":"session","session":\#(codex)}"#),
+              case .session(let b)? = ServerMessage.parse(#"{"type":"session","session":\#(sessionJSON)}"#) else {
+            return expect(false, "not a session message")
+        }
+        expectEqual(a.agent, "codex")
+        expectEqual(b.agent, nil)
+    }
+
+    test("the hover name says which agent runs the session") {
+        expectEqual(session(name: "api", agent: nil).hoverName, "api · Claude")
+        expectEqual(session(name: "api", agent: "claude").hoverName, "api · Claude")
+        expectEqual(session(name: "api", agent: "codex").hoverName, "api · Codex")
+        expectEqual(session(name: "api", agent: "gemini").hoverName, "api · gemini")
+    }
+
     test("only a live background session can be stopped, and an active one asks first") {
         expectEqual(session(live: true, kind: "background").canStop, true)
         expectEqual(session(live: false, kind: "background").canStop, false)

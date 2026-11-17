@@ -23,6 +23,7 @@ interface SessionRow {
   pid: number | null;
   state_since: number;
   last_event_at: number;
+  agent: string | null;
 }
 
 interface PinRow {
@@ -59,6 +60,9 @@ export class Store {
         created_at INTEGER NOT NULL
       );
     `);
+    // Added with Codex support: databases from before it gain the column, with NULL meaning Claude Code.
+    const columns = this.db.query<{ name: string }, []>("PRAGMA table_info(sessions)").all();
+    if (!columns.some((c) => c.name === "agent")) this.db.exec("ALTER TABLE sessions ADD COLUMN agent TEXT");
   }
 
   loadSessions(): SessionRecord[] {
@@ -75,20 +79,21 @@ export class Store {
         pid: r.pid,
         stateSince: r.state_since,
         lastEventAt: r.last_event_at,
+        ...(r.agent ? { agent: r.agent } : {}),
       }));
   }
 
   saveSession(s: SessionRecord) {
     this.db
       .query(
-        `INSERT INTO sessions (id, name, cwd, state, activity, live, pid, state_since, last_event_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO sessions (id, name, cwd, state, activity, live, pid, state_since, last_event_at, agent)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO UPDATE SET
            name = excluded.name, cwd = excluded.cwd, state = excluded.state, activity = excluded.activity,
            live = excluded.live, pid = excluded.pid, state_since = excluded.state_since,
-           last_event_at = excluded.last_event_at`,
+           last_event_at = excluded.last_event_at, agent = excluded.agent`,
       )
-      .run(s.id, s.name, s.cwd, s.state, s.activity, s.live ? 1 : 0, s.pid, s.stateSince, s.lastEventAt);
+      .run(s.id, s.name, s.cwd, s.state, s.activity, s.live ? 1 : 0, s.pid, s.stateSince, s.lastEventAt, s.agent ?? null);
   }
 
   deleteSession(id: string) {
@@ -102,14 +107,14 @@ export class Store {
     );
   }
 
-  /** Appends to the pin order with the default icon; no-op if already pinned. */
-  pin(sessionId: string) {
+  /** Appends to the pin order with `icon`; no-op if already pinned. */
+  pin(sessionId: string, icon: SessionIcon = DEFAULT_ICON) {
     this.db
       .query(
         `INSERT OR IGNORE INTO pins (session_id, position, character, color, created_at)
          VALUES (?, (SELECT COALESCE(MAX(position) + 1, 0) FROM pins), ?, ?, ?)`,
       )
-      .run(sessionId, DEFAULT_ICON.character, DEFAULT_ICON.color, Date.now());
+      .run(sessionId, icon.character, icon.color, Date.now());
   }
 
   unpin(sessionId: string) {

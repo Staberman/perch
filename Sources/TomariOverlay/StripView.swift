@@ -95,9 +95,10 @@ final class StripView: NSView {
     }
 
     /// Opens `menu` beside cell `index`, outside any mouse event.
-    func popUp(_ menu: NSMenu, atCell index: Int) {
+    /// A cell's frame on screen, to place a panel beside it.
+    func screenFrame(ofCell index: Int) -> NSRect {
         let cell = layout.cellFrame(index, in: layout.stripRect(in: bounds, edge: edge))
-        menu.popUp(positioning: nil, at: NSPoint(x: cell.minX, y: cell.maxY), in: self)
+        return window?.convertToScreen(convert(cell, to: nil)) ?? cell
     }
 
     func show(_ appearances: [CreatureAppearance]) {

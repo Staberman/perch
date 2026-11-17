@@ -8,7 +8,7 @@ export type Command =
 
 export const USAGE = `Usage: tomari <command>
 
-  setup                install the agent, the strip and the Claude Code hooks, and start them
+  setup                install the agent, the strip and the Claude Code (and Codex) hooks, and start them
   status               show what is installed and running
   uninstall [--purge]  remove everything; --purge also deletes pins and icons without asking
   agent                run the agent in the foreground (what the LaunchAgent runs)

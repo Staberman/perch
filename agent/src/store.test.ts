@@ -53,3 +53,20 @@ test("imports nothing once the store has pins of its own", () => {
 test("a missing database imports nothing", () => {
   expect(new Store().importPinsFrom(`${tempDb()}.missing`)).toBe(0);
 });
+
+test("a database from before Codex support gains the agent column, and the agent round-trips", () => {
+  const path = tempDb();
+  const { Database } = require("bun:sqlite") as typeof import("bun:sqlite");
+  const old = new Database(path, { create: true });
+  old.exec(`CREATE TABLE sessions (id TEXT PRIMARY KEY, name TEXT, cwd TEXT NOT NULL, state TEXT NOT NULL, activity TEXT,
+    live INTEGER NOT NULL, pid INTEGER, state_since INTEGER NOT NULL, last_event_at INTEGER NOT NULL)`);
+  old.query("INSERT INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").run(ended.id, ended.name, ended.cwd, "ended", null, 0, null, 1, 1);
+  old.close();
+
+  const store = new Store(path);
+  expect(store.loadSessions()[0]!.agent).toBeUndefined(); // an old row is Claude Code's
+  const codex: SessionRecord = { ...ended, id: "22222222-2222-4222-8222-222222222222", agent: "codex", pid: 4242 };
+  store.saveSession(codex);
+  store.close();
+  expect(new Store(path).loadSessions().find((s) => s.id === codex.id)).toEqual(codex);
+});

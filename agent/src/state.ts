@@ -4,9 +4,12 @@
  * Hook events are the authority: instant and detailed. Polls of `claude agents --json`
  * only correct state that has gone stale (no hook for GRACE_MS), and are the only
  * reliable signal that a session process has died.
+ *
+ * Codex sends the same hook events with the same fields, plus PermissionRequest. `claude agents`
+ * never lists its sessions, so they end only through SessionEnd or their pid dying.
  */
 import { basename } from "node:path";
-import type { SessionKind, SessionState } from "../../shared/protocol.ts";
+import type { SessionAgent, SessionKind, SessionState } from "../../shared/protocol.ts";
 
 export interface HookEvent {
   hook_event_name: string;
@@ -43,7 +46,19 @@ export interface SessionRecord {
   lastEventAt: number;
   /** From the poll: "interactive" (a terminal) or "background" (`claude agents`, `--bg`). Not persisted. */
   kind?: SessionKind;
+  /** The agent running the session; absent means Claude Code. */
+  agent?: SessionAgent;
 }
+
+/** What the hook endpoint knows about an event beyond its payload. */
+export interface HookOrigin {
+  /** Set for agents other than Claude Code. */
+  agent?: SessionAgent;
+  /** The agent process that ran the hook, when the hook command reports it (Codex: `$PPID`). */
+  pid?: number;
+}
+
+export const isCodex = (rec: { agent?: SessionAgent }) => rec.agent === "codex";
 
 /** How long hook-derived state wins over a contradicting poll. */
 export const GRACE_MS = 10_000;
@@ -60,8 +75,10 @@ function newRecord(id: string, cwd: string, now: number, state: SessionState = "
   return { id, name: null, cwd, state, activity: null, live: true, pid: null, stateSince: now, lastEventAt: now };
 }
 
-export function applyHookEvent(prev: SessionRecord | undefined, e: HookEvent, now: number): SessionRecord {
+export function applyHookEvent(prev: SessionRecord | undefined, e: HookEvent, now: number, origin: HookOrigin = {}): SessionRecord {
   const rec: SessionRecord = { ...(prev ?? newRecord(e.session_id, e.cwd, now)), live: true, lastEventAt: now };
+  if (origin.agent && origin.agent !== "claude") rec.agent = origin.agent;
+  if (origin.pid !== undefined) rec.pid = origin.pid;
   const to = (state: SessionState, activity: string | null) => moveTo(rec, state, activity, now);
   // Background subagents keep calling tools after the turn ends, under the parent's session_id.
   const afterTurn = Boolean(e.agent_id) && (rec.state === "done" || rec.state === "error");
@@ -82,6 +99,11 @@ export function applyHookEvent(prev: SessionRecord | undefined, e: HookEvent, no
     case "PostToolUse":
     case "PostToolUseFailure":
       return afterTurn ? rec : to("working", describeTool(String(e.tool_name ?? ""), e.tool_input));
+
+    case "PermissionRequest": { // Codex; Claude Code reports a permission prompt as a Notification
+      const input = (e.tool_input ?? {}) as Record<string, unknown>;
+      return to("needs_permission", oneLine(input.description) || describeTool(String(e.tool_name ?? ""), e.tool_input) || "Needs your permission");
+    }
 
     case "Notification":
       switch (e.notification_type) {
@@ -131,13 +153,34 @@ export function describeTool(tool: string, input: unknown): string {
   if (tool.startsWith("mcp__")) {
     const [, server, ...name] = tool.split("__");
     label = `${server}: ${name.join("__")}`;
+  } else if (tool === "apply_patch") {
+    // Codex puts the patch in `command`; its headers name the files it touches.
+    const file = /^\*\*\* (?:Add|Update|Delete) File: (.+)$/m.exec(patchText(i.command))?.[1];
+    label = file ? `Edit: ${basename(file.trim())}` : "Edit";
   } else if (str(i.file_path)) {
     label = `${tool}: ${basename(str(i.file_path))}`;
   } else {
-    const detail = str(i.command) || str(i.pattern) || str(i.description) || str(i.query) || str(i.url);
+    const detail = commandText(i.command) || str(i.pattern) || str(i.description) || str(i.query) || str(i.url);
     label = detail ? `${tool}: ${detail}` : tool;
   }
   return truncate(oneLine(label), MAX_ACTIVITY);
+}
+
+/** A shell command as a string, or an argv array joined with spaces; "" for anything else. */
+function commandText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && value.every((part) => typeof part === "string")) {
+    // Codex may hand the shell form, e.g. ["bash", "-lc", "npm test"]: the script is the useful part.
+    if (value.length === 3 && /(^|\/)(ba|z)?sh$/.test(value[0]) && /^-l?c$/.test(value[1])) return value[2];
+    return value.join(" ");
+  }
+  return "";
+}
+
+function patchText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.filter((part) => typeof part === "string").join("\n");
+  return "";
 }
 
 /** Merges one poll into `records`; returns only the records that changed. */
@@ -157,7 +200,8 @@ export function reconcile(
   }
 
   for (const rec of records.values()) {
-    if (rec.live && !listed.has(rec.id) && now - rec.lastEventAt > GRACE_MS) {
+    // `claude agents` only knows Claude Code: a Codex session missing from it says nothing.
+    if (rec.live && !isCodex(rec) && !listed.has(rec.id) && now - rec.lastEventAt > GRACE_MS) {
       changed.push({ ...moveTo(rec, "ended", null, now), live: false, pid: null });
     }
   }

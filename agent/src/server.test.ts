@@ -7,6 +7,7 @@ import { FrontApp } from "./front-app.ts";
 import { SessionHub } from "./hub.ts";
 import { planOpen, type OpenResult } from "./open-session.ts";
 import { openLogLine, startServers } from "./server.ts";
+import type { CodexThread } from "./codex.ts";
 import { Store } from "./store.ts";
 
 const ID = "0603472f-b7c5-4dae-b7a1-142468264b30";
@@ -26,6 +27,7 @@ let stopped: string[];
 let stop: (id: string) => Promise<OpenResult>;
 let desktopSessions: () => Promise<DesktopSession[]>;
 let terminal: () => Promise<OpenResult>;
+let codexLibrary: () => Promise<CodexThread[]>;
 
 beforeEach(() => {
   opened = [];
@@ -38,6 +40,7 @@ beforeEach(() => {
   front = new FrontApp();
   desktopSessions = async () => DESKTOP;
   terminal = async () => ({ ok: true, command: ["fake-terminal"] });
+  codexLibrary = async () => [];
   servers = startServers({
     hub,
     front,
@@ -51,6 +54,9 @@ beforeEach(() => {
     desktopSessions: () => desktopSessions(),
     terminal: () => terminal(),
     stop: (id) => stop(id),
+    codexPid: async (reported) => (reported === 4242 ? 4200 : null),
+    admitCodex: async (event) => event.hook_event_name !== "SessionStart",
+    codexLibrary: () => codexLibrary(),
   });
 });
 afterEach(() => servers.stop());
@@ -375,4 +381,64 @@ test("openLogLine: one line per open request, without paths", () => {
   );
   expect(openLogLine(id, { ok: false, error: "x".repeat(300) })).toBe(`open 01234567: ${"x".repeat(120)}`);
   expect(openLogLine(id, { ok: false, error: "" })).toBe("open 01234567: ");
+});
+
+test("Codex hooks arrive on their own path, with the Codex process behind them", async () => {
+  const post = (pid: string) =>
+    fetch(`${hookUrl()}/codex`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Tomari-Pid": pid },
+      body: JSON.stringify({ hook_event_name: "PermissionRequest", session_id: ID, cwd: "/tmp/demo", tool_name: "Bash", tool_input: { command: "ls" } }),
+    });
+  expect((await post("4242")).status).toBe(204);
+  expect(hub.get(ID)).toMatchObject({ agent: "codex", state: "needs_permission" });
+  expect(hub.openContext(ID).pid).toBe(4200);
+  // A pid that leads to no Codex process, or no pid at all, keeps the one known.
+  await post("77");
+  await post("not a pid");
+  expect(hub.openContext(ID).pid).toBe(4200);
+  expect((await fetch(`${hookUrl()}/other`, { method: "POST", body: "{}" })).status).toBe(404);
+});
+
+test("a Codex session the admission turns down never reaches the hub", async () => {
+  const res = await fetch(`${hookUrl()}/codex`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ hook_event_name: "SessionStart", session_id: ID, cwd: "/tmp/demo", source: "startup" }),
+  });
+  expect(res.status).toBe(204);
+  expect(hub.has(ID)).toBe(false);
+});
+
+test("the library lists Codex threads as Codex's, and pinning a closed one adopts it as Codex's", async () => {
+  const THREAD = "01a1eb1b-0000-7000-8000-000000000001";
+  codexLibrary = async () => [{ id: THREAD, name: "Orientar ruta", cwd: "/Users/dev/shy-planner", lastActivityAt: 9000 }];
+  const { ws, next } = await connect();
+  await next(); // snapshot
+
+  ws.send(JSON.stringify({ type: "library" }));
+  expect(await next()).toEqual({
+    type: "library",
+    sessions: [
+      { id: THREAD, name: "Orientar ruta", cwd: "/Users/dev/shy-planner", lastActivityAt: 9000, pinned: false, agent: "codex" },
+      { id: IDLE, name: "Idle work", cwd: "/Users/dev/idle", lastActivityAt: 5000, pinned: false },
+    ],
+  });
+
+  ws.send(JSON.stringify({ type: "pin", id: THREAD, pinned: true }));
+  expect(await next()).toMatchObject({ type: "session", session: { id: THREAD, agent: "codex", live: false, state: "ended" } });
+  expect(await next()).toMatchObject({ type: "session", session: { id: THREAD, pinned: true, icon: { character: "robot" } } });
+  ws.close();
+});
+
+test("the library keeps up to 100 sessions per agent, so many of one never crowd out the other", async () => {
+  codexLibrary = async () =>
+    Array.from({ length: 120 }, (_, i) => ({ id: `01a1eb1b-0000-7000-8000-${String(i).padStart(12, "0")}`, name: `t${i}`, cwd: "/x", lastActivityAt: 10_000 + i }));
+  const { ws, next } = await connect();
+  await next(); // snapshot
+  ws.send(JSON.stringify({ type: "library" }));
+  const reply = (await next()) as Extract<ServerMessage, { type: "library" }>;
+  expect(reply.sessions.filter((s) => s.agent === "codex").length).toBe(100);
+  expect(reply.sessions.some((s) => s.id === IDLE)).toBe(true); // the older Claude session is still there
+  ws.close();
 });

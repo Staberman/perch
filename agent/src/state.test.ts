@@ -253,3 +253,39 @@ describe("reconcile (poll of `claude agents --json`)", () => {
     expect(reconcile(records(rec), [agent("idle")], T0 + 3000)).toEqual([]);
   });
 });
+
+describe("Codex", () => {
+  const codex = { agent: "codex", pid: 4242 } as const;
+
+  test("a hook from Codex marks the session as Codex's and records the process that ran it", () => {
+    const rec = applyHookEvent(undefined, ev("SessionStart", { source: "startup" }), T0, codex);
+    expect(rec).toMatchObject({ state: "idle", agent: "codex", pid: 4242, live: true });
+    // Later events without a pid keep the one known.
+    expect(applyHookEvent(rec, ev("UserPromptSubmit"), T0 + 1, { agent: "codex" }).pid).toBe(4242);
+    // Claude Code's hooks carry no origin: nothing changes for them.
+    expect(applyHookEvent(undefined, ev("SessionStart"), T0).agent).toBeUndefined();
+  });
+
+  test("PermissionRequest waits for permission, with the request's description or the tool", () => {
+    const working = applyHookEvent(undefined, ev("UserPromptSubmit"), T0, codex);
+    const asked = applyHookEvent(working, ev("PermissionRequest", { tool_name: "Bash", tool_input: { command: "rm -rf build", description: "Remove the build folder" } }), T0 + 1, codex);
+    expect(asked).toMatchObject({ state: "needs_permission", activity: "Remove the build folder" });
+    const plain = applyHookEvent(working, ev("PermissionRequest", { tool_name: "Bash", tool_input: { command: "rm -rf build", description: null } }), T0 + 1, codex);
+    expect(plain.activity).toBe("Bash: rm -rf build");
+    // Approved: the tool runs, and its PostToolUse puts the session back to work.
+    expect(applyHookEvent(asked, ev("PostToolUse", { tool_name: "Bash", tool_input: { command: "rm -rf build" } }), T0 + 2, codex).state).toBe("working");
+  });
+
+  test("the claude agents poll never ends a Codex session it doesn't list", () => {
+    const rec = { ...applyHookEvent(undefined, ev("UserPromptSubmit"), T0, codex), lastEventAt: T0 };
+    expect(reconcile(new Map([[ID, rec]]), [], T0 + GRACE_MS * 10)).toEqual([]);
+  });
+
+  test("describeTool reads Codex's shell commands and patches", () => {
+    expect(describeTool("Bash", { command: ["bash", "-lc", "npm test"] })).toBe("Bash: npm test");
+    expect(describeTool("Bash", { command: ["git", "status"] })).toBe("Bash: git status");
+    expect(describeTool("apply_patch", { command: "*** Begin Patch\n*** Update File: src/app/main.ts\n@@\n-a\n+b\n*** End Patch" })).toBe("Edit: main.ts");
+    expect(describeTool("apply_patch", { command: "*** Begin Patch\n*** Add File: notes.md\n+hi\n*** End Patch" })).toBe("Edit: notes.md");
+    expect(describeTool("apply_patch", { command: "garbled" })).toBe("Edit");
+  });
+});

@@ -1,4 +1,5 @@
 import { $ } from "bun";
+import { codexThreadNames, hasCodex } from "./codex.ts";
 import type { SessionHub } from "./hub.ts";
 import { isAlive, sessionPids } from "./open-session.ts";
 import type { AgentEntry } from "./state.ts";
@@ -9,6 +10,8 @@ export interface PollerOptions {
   agents?: () => Promise<AgentEntry[]>;
   sessionPids?: () => Promise<Map<string, number>>;
   isAlive?: (pid: number) => boolean;
+  /** Codex thread titles by session id; empty without Codex. */
+  codexNames?: () => Promise<Map<string, string>>;
 }
 
 /** Feeds `claude agents --json` to the hub every `intervalMs`. Returns a stop function. */
@@ -19,6 +22,7 @@ export function startPoller(
     agents = () => $`claude agents --json`.quiet().json(),
     sessionPids: pids = () => sessionPids(),
     isAlive: alive = isAlive,
+    codexNames = async () => (hasCodex() ? codexThreadNames() : new Map()),
   }: PollerOptions = {},
 ) {
   let stopped = false;
@@ -40,6 +44,8 @@ export function startPoller(
       } catch (err) {
         console.error(`liveness check failed: ${err instanceof Error ? err.message : String(err)}`);
       }
+      // Codex keeps a thread's title outside its hooks; cheap to read, and never throws.
+      hub.handleCodexNames(await codexNames());
       await Bun.sleep(intervalMs);
     }
   })();

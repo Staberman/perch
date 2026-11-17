@@ -10,7 +10,9 @@ import type { SessionHub } from "./hub.ts";
 import { openSession, openTerminalTab, type OpenOptions, type OpenResult } from "./open-session.ts";
 import { parseClientMessage } from "./protocol-guard.ts";
 import { stopSession } from "./stop-session.ts";
-import type { HookEvent } from "./state.ts";
+import type { HookEvent, HookOrigin } from "./state.ts";
+import { codexAdmission, codexPidResolver, codexThreads, type CodexThread } from "./codex.ts";
+import { PID_HEADER } from "./hooks-config.ts";
 import { FrontApp } from "./front-app.ts";
 
 export interface ServerOptions {
@@ -25,6 +27,12 @@ export interface ServerOptions {
   terminal?: () => Promise<OpenResult>;
   stop?: (id: string) => Promise<OpenResult>;
   desktopSessions?: () => Promise<DesktopSession[]>;
+  /** Maps the pid a Codex hook reports to the Codex process; replaceable so tests don't run `ps`. */
+  codexPid?: (reported: number) => Promise<number | null>;
+  /** Whether a Codex event belongs to a session worth tracking; replaceable so tests don't need rollouts. */
+  admitCodex?: (event: HookEvent, known: boolean) => Promise<boolean>;
+  /** Codex's threads, running or not; replaceable so tests don't read Codex's database. */
+  codexLibrary?: () => Promise<CodexThread[]>;
 }
 
 const TOPIC = "panel";
@@ -40,11 +48,17 @@ export function startServers({
   terminal = openTerminalTab,
   stop = stopSession,
   desktopSessions = desktopSessionsLister(),
+  codexPid = codexPidResolver(),
+  admitCodex = codexAdmission(),
+  codexLibrary = () => codexThreads(),
 }: ServerOptions) {
-  /** Desktop sessions plus the live ones the agent sees, e.g. in a terminal; a desktop entry wins a duplicate. */
+  /**
+   * The Claude app's sessions and Codex's threads, plus the live ones the agent sees, e.g. in a terminal; a desktop
+   * or Codex entry wins a duplicate. Most recent first, up to LIBRARY_SIZE per agent.
+   */
   async function library(): Promise<LibraryEntry[]> {
-    const desktop = await desktopSessions();
-    const inDesktop = new Set(desktop.map((s) => s.sessionId));
+    const [desktop, codex] = await Promise.all([desktopSessions(), codexLibrary()]);
+    const listed = new Set([...desktop.map((s) => s.sessionId), ...codex.map((t) => t.id)]);
     const entries: LibraryEntry[] = desktop
       .filter((s) => !s.archived)
       .map((s) => ({
@@ -54,15 +68,38 @@ export function startServers({
         lastActivityAt: s.lastActivityAt,
         pinned: hub.get(s.sessionId)?.pinned ?? false,
       }));
-    for (const entry of hub.liveEntries()) if (!inDesktop.has(entry.id)) entries.push(entry);
-    return entries.sort((a, b) => b.lastActivityAt - a.lastActivityAt).slice(0, LIBRARY_SIZE);
+    for (const thread of codex) {
+      entries.push({
+        id: thread.id,
+        name: thread.name || hub.get(thread.id)?.name || basename(thread.cwd),
+        cwd: thread.cwd,
+        lastActivityAt: thread.lastActivityAt,
+        pinned: hub.get(thread.id)?.pinned ?? false,
+        agent: "codex",
+      });
+    }
+    for (const entry of hub.liveEntries()) if (!listed.has(entry.id)) entries.push(entry);
+    const perAgent = new Map<string, number>();
+    return entries
+      .sort((a, b) => b.lastActivityAt - a.lastActivityAt)
+      .filter((entry) => {
+        const agent = entry.agent ?? "claude";
+        const count = (perAgent.get(agent) ?? 0) + 1;
+        perAgent.set(agent, count);
+        return count <= LIBRARY_SIZE;
+      });
   }
 
-  /** Lets the panel pin a desktop session whose process isn't running, so the agent never saw it. */
-  async function adoptFromDesktop(id: string) {
+  /** Lets the panel pin a desktop session or Codex thread whose process isn't running, so the agent never saw it. */
+  async function adoptFromLibrary(id: string) {
     const session = (await desktopSessions()).find((s) => s.sessionId === id);
-    if (session) hub.adopt(session.sessionId, session.title, session.cwd, session.lastActivityAt);
+    if (session) return hub.adopt(session.sessionId, session.title, session.cwd, session.lastActivityAt);
+    const thread = (await codexLibrary()).find((t) => t.id === id);
+    if (thread) hub.adopt(thread.id, thread.name || null, thread.cwd, thread.lastActivityAt, "codex");
   }
+
+  /** Codex sessions already logged as held back, so each one is said once. */
+  const heldBack = new Set<string>();
 
   /** Sessions with a stop under way: a second request meanwhile would run `claude stop` twice. */
   const stopping = new Set<string>();
@@ -72,10 +109,27 @@ export function startServers({
     port: hookPort,
     async fetch(req) {
       const { pathname } = new URL(req.url);
-      if (req.method !== "POST" || pathname !== "/hook") return new Response("not found", { status: 404 });
+      if (req.method !== "POST" || (pathname !== "/hook" && pathname !== "/hook/codex")) return new Response("not found", { status: 404 });
       try {
         const event = (await req.json()) as HookEvent;
-        if (typeof event?.session_id === "string" && typeof event.hook_event_name === "string") hub.handleHook(event);
+        if (typeof event?.session_id === "string" && typeof event.hook_event_name === "string") {
+          const origin: HookOrigin = {};
+          if (pathname === "/hook/codex") {
+            if (!(await admitCodex(event, hub.has(event.session_id)))) {
+              if (!heldBack.has(event.session_id) && event.hook_event_name !== "SessionStart" && event.hook_event_name !== "SessionEnd") {
+                if (heldBack.size > 200) heldBack.clear();
+                heldBack.add(event.session_id);
+                console.log(`codex ${event.session_id.slice(0, 8)}: not shown yet, it has no rollout (an internal Codex session, or one still starting)`);
+              }
+              return new Response(null, { status: 204 });
+            }
+            origin.agent = "codex";
+            const reported = Number(req.headers.get(PID_HEADER));
+            const pid = Number.isSafeInteger(reported) && reported > 1 ? await codexPid(reported) : null;
+            if (pid !== null) origin.pid = pid;
+          }
+          hub.handleHook(event, origin);
+        }
       } catch {
         return new Response("bad json", { status: 400 });
       }
@@ -116,13 +170,19 @@ export function startServers({
             if (!result.ok) send(ws, { type: "error", message: result.error });
             return;
           }
-          if (!hub.has(msg.id) && msg.type !== "open" && msg.type !== "stop") await adoptFromDesktop(msg.id);
+          if (!hub.has(msg.id) && msg.type !== "open" && msg.type !== "stop") await adoptFromLibrary(msg.id);
           if (!hub.has(msg.id)) return send(ws, { type: "error", message: "unknown session" });
 
           switch (msg.type) {
             case "open": {
               const session = hub.get(msg.id);
-              const result = await open(msg.id, { cwd: session?.cwd, kind: session?.kind, name: hub.titleOf(msg.id) ?? undefined });
+              const result = await open(msg.id, {
+                cwd: session?.cwd,
+                kind: session?.kind,
+                name: hub.titleOf(msg.id) ?? undefined,
+                agent: session?.agent,
+                ...hub.openContext(msg.id),
+              });
               console.error(openLogLine(msg.id, result));
               // The desktop log confirms focus a moment later; show it right away.
               if (result.ok) hub.setFocused(msg.id);

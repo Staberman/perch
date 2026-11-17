@@ -3,8 +3,8 @@
  * about changes the panel can see, so a burst of identical hook events yields one message.
  */
 import { basename } from "node:path";
-import { BACKGROUND_KIND, DEFAULT_ICON, type LibraryEntry, type PanelSession, type SessionIcon } from "../../shared/protocol.ts";
-import { applyHookEvent, reconcile, type AgentEntry, type HookEvent, type SessionRecord } from "./state.ts";
+import { BACKGROUND_KIND, CODEX_ICON, DEFAULT_ICON, type LibraryEntry, type PanelSession, type SessionAgent, type SessionIcon } from "../../shared/protocol.ts";
+import { applyHookEvent, isCodex, reconcile, type AgentEntry, type HookEvent, type HookOrigin, type SessionRecord } from "./state.ts";
 import type { Pin, Store } from "./store.ts";
 
 export type HubChange =
@@ -16,7 +16,10 @@ export type HubListener = (change: HubChange) => void;
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** How long the poll is ignored for a session just stopped: `claude agents` may list the process a few seconds more. */
 const STOPPED_GRACE_MS = 30_000;
-const VISIBLE: (keyof SessionRecord)[] = ["name", "cwd", "state", "activity", "live", "stateSince", "kind"];
+const VISIBLE: (keyof SessionRecord)[] = ["name", "cwd", "state", "activity", "live", "stateSince", "kind", "agent"];
+
+/** The icon a session starts with, until the user picks one. */
+export const defaultIcon = (rec: Pick<SessionRecord, "agent">): SessionIcon => (isCodex(rec) ? CODEX_ICON : DEFAULT_ICON);
 
 export class SessionHub {
   private records = new Map<string, SessionRecord>();
@@ -78,10 +81,11 @@ export class SessionHub {
         cwd: rec.cwd,
         lastActivityAt: rec.lastEventAt > 0 ? rec.lastEventAt : rec.stateSince, // 0: only the poll has seen it
         pinned: this.pins.has(rec.id),
+        ...(rec.agent ? { agent: rec.agent } : {}),
       }));
   }
 
-  handleHook(event: HookEvent) {
+  handleHook(event: HookEvent, origin: HookOrigin = {}) {
     if (typeof event.transcript_path === "string") {
       // A lookup that ran before any path was known may have missed: the first path earns one more try.
       if (!this.transcripts.has(event.session_id) && !this.prompts.has(event.session_id)) this.lookedUp.delete(event.session_id);
@@ -91,7 +95,30 @@ export class SessionHub {
       const snippet = snippetOf(event.prompt);
       if (snippet) this.prompts.set(event.session_id, snippet);
     }
-    this.commit(applyHookEvent(this.records.get(event.session_id), event, this.now()));
+    this.commit(applyHookEvent(this.records.get(event.session_id), event, this.now(), origin));
+  }
+
+  /**
+   * Titles Codex keeps for its threads (`/rename`, or the one it generates), by session id. Only Codex
+   * sessions take them: `claude agents` already names Claude Code's.
+   */
+  handleCodexNames(names: ReadonlyMap<string, string>) {
+    for (const rec of [...this.records.values()]) {
+      const name = isCodex(rec) ? names.get(rec.id) : undefined;
+      if (name && name !== rec.name) this.commit({ ...rec, name });
+    }
+  }
+
+  /** Live Codex sessions → the pid their hooks reported, so a Terminal tab can be matched to them by tty. */
+  codexPids(): Map<string, number> {
+    const pids = new Map<string, number>();
+    for (const rec of this.records.values()) if (isCodex(rec) && rec.live && rec.pid != null) pids.set(rec.id, rec.pid);
+    return pids;
+  }
+
+  /** What opening a session needs to know that the panel doesn't see. */
+  openContext(id: string): { pid: number | null; transcriptPath?: string } {
+    return { pid: this.records.get(id)?.pid ?? null, transcriptPath: this.transcripts.get(id) };
   }
 
   handleAgents(agents: AgentEntry[]) {
@@ -120,10 +147,11 @@ export class SessionHub {
     return { ...rec, state: "ended", activity: null, live: false, pid: null, stateSince: this.now() };
   }
 
-  /** Starts tracking a session that is not running, e.g. a desktop session about to be pinned. No-op if known. */
-  adopt(id: string, name: string | null, cwd: string, since: number) {
+  /** Starts tracking a session that is not running, e.g. a desktop or Codex session about to be pinned. No-op if known. */
+  adopt(id: string, name: string | null, cwd: string, since: number, agent?: SessionAgent) {
     if (this.records.has(id)) return;
-    this.commit({ id, name, cwd, state: "ended", activity: null, live: false, pid: null, stateSince: since, lastEventAt: 0 });
+    const rec: SessionRecord = { id, name, cwd, state: "ended", activity: null, live: false, pid: null, stateSince: since, lastEventAt: 0 };
+    this.commit(agent && agent !== "claude" ? { ...rec, agent } : rec);
   }
 
   /** Ends a session whose process was just stopped, without waiting for the poll. False if unknown. */
@@ -145,7 +173,7 @@ export class SessionHub {
   setPinned(id: string, pinned: boolean): boolean {
     const rec = this.records.get(id);
     if (!rec) return false;
-    if (pinned) this.store.pin(id);
+    if (pinned) this.store.pin(id, defaultIcon(rec));
     else this.store.unpin(id);
     this.pins = this.store.loadPins();
     this.emit({ type: "session", session: this.toPanel(rec) });
@@ -290,8 +318,9 @@ export class SessionHub {
       stateSince: rec.stateSince,
       pinned: pin !== undefined,
       position: pin?.position ?? null,
-      icon: pin?.icon ?? DEFAULT_ICON,
+      icon: pin?.icon ?? defaultIcon(rec),
       ...(rec.kind ? { kind: rec.kind } : {}),
+      ...(rec.agent ? { agent: rec.agent } : {}),
     };
   }
 }

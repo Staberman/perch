@@ -135,4 +135,38 @@ func appearanceTests() {
         expectEqual(tab([], collapsed: true), Tile(fill: .white(0.12)))
         expectEqual(tab([session(state: .done, stateSince: now - 60)], collapsed: true), Tile(fill: .white(0.12), border: .ready))
     }
+
+    test("every session wears its agent's badge") {
+        expectEqual(AgentBadge(agent: nil), .claude)
+        expectEqual(AgentBadge(agent: "claude"), .claude)
+        expectEqual(AgentBadge(agent: "codex"), .codex)
+        expectEqual(AgentBadge(agent: "gemini"), .other)
+    }
+
+    test("the badge sits in a corner no character, mood or frame ever draws in") {
+        let corner = 5
+        for character in CharacterTemplate.all {
+            for mood in Mood.allCases {
+                for frame in 0..<16 {
+                    let pixels = spriteFrame(character: character.id, color: RGB(hex: "#d97757")!, mood: mood, frame: frame)
+                    for y in 0..<corner { for x in 0..<corner where pixels[y][x] != nil {
+                        expect(false, "\(character.id) \(mood) frame \(frame) draws at \(x),\(y)")
+                    } }
+                }
+            }
+        }
+    }
+
+    test("a badged creature differs from a plain one only in that corner, and grays out with it") {
+        let s = session(state: .working), plain = look(s)
+        let badged = CreatureAppearance(session: s, focused: false, hovered: false, frame: 1, now: now, badge: .codex)
+        expect(badged.pixels[0][0] != nil, "the badge is drawn")
+        for y in 0..<spriteSize { for x in 0..<spriteSize where x >= 5 || y >= 5 {
+            expectEqual(badged.pixels[y][x], plain.pixels[y][x])
+        } }
+        let closed = session(live: false)
+        let gray = CreatureAppearance(session: closed, focused: false, hovered: false, frame: 1, now: now, badge: .claude)
+        let spark = gray.pixels[0][2]!
+        expect(spark.r == spark.g && spark.g == spark.b, "a closed session's badge is gray too")
+    }
 }

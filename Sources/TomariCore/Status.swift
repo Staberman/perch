@@ -7,6 +7,15 @@ extension PanelSession {
         state == .needsPermission || state == .needsInput
     }
 
+    /// The name the hover label shows, with the agent that runs the session after it.
+    public var hoverName: String {
+        switch agent {
+        case nil, "claude": return "\(name) · Claude"
+        case "codex": return "\(name) · Codex"
+        case let other?: return "\(name) · \(other)"
+        }
+    }
+
     /// Only a live background session can be stopped from the strip.
     public var canStop: Bool {
         live && kind == "background"
