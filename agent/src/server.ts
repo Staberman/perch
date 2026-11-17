@@ -123,6 +123,7 @@ export function startServers({
             case "open": {
               const session = hub.get(msg.id);
               const result = await open(msg.id, { cwd: session?.cwd, kind: session?.kind, name: hub.titleOf(msg.id) ?? undefined });
+              console.error(openLogLine(msg.id, result));
               // The desktop log confirms focus a moment later; show it right away.
               if (result.ok) hub.setFocused(msg.id);
               else send(ws, { type: "error", message: result.error });
@@ -174,6 +175,16 @@ export function startServers({
       panelServer.stop(true);
     },
   };
+}
+
+/**
+ * One log line per open request, to tell why a session didn't come to the front. No prompt text, and no
+ * paths: an error can hold local paths, so any word with a slash becomes `<path>`.
+ */
+export function openLogLine(id: string, result: OpenResult): string {
+  if (result.ok) return `open ${id.slice(0, 8)}: ok`;
+  const firstLine = result.error.split("\n")[0] ?? "";
+  return `open ${id.slice(0, 8)}: ${firstLine.replace(/\S*\/\S*/g, "<path>").slice(0, 120)}`;
 }
 
 function send(ws: { send(data: string): unknown }, message: ServerMessage) {
