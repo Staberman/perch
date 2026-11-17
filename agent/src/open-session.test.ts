@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { openTerminalTab, planOpen, run, sessionPids, type OpenResult } from "./open-session.ts";
+import { openSession, openTerminalTab, planOpen, RELEASE_DESKTOP_FOCUS, REFOCUS_DELAY_MS, run, sessionPids, type OpenResult } from "./open-session.ts";
 
 const ID = "0603472f-b7c5-4dae-b7a1-142468264b30";
 const CLOSED = "22222222-2222-4222-8222-222222222222"; // not running
@@ -193,4 +193,24 @@ test("Codex: a closed session resumes with codex resume in its folder, passed on
   expect(plan.command[2]).toContain("codex resume");
   expect(plan.command.slice(-2)).toEqual(["/Users/dev/it's odd", CODEX]);
   expect(plan.command[2]).not.toContain("odd");
+});
+
+test("the session the desktop app already counts as focused goes through needs-input first, so the link is acted on", async () => {
+  mkdirSync(`${desktopDir}/account/org`, { recursive: true });
+  writeFileSync(`${desktopDir}/account/org/local_abc-123.json`, JSON.stringify({ sessionId: "local_abc-123", cliSessionId: ID }));
+  const link = ["open", "claude://code/continue?session=local_abc-123"];
+  expect(await planOpen(ID, { liveDir, desktopDir, focusedInDesktop: true })).toEqual({ ok: true, command: link, before: RELEASE_DESKTOP_FOCUS });
+
+  const ran: string[][] = [];
+  const slept: number[] = [];
+  const runner = async (command: string[]): Promise<OpenResult> => (ran.push(command), { ok: true, command });
+  const result = await openSession(ID, { liveDir, desktopDir, focusedInDesktop: true }, runner, async (ms) => void slept.push(ms));
+  expect(ran).toEqual([RELEASE_DESKTOP_FOCUS, link]);
+  expect(slept).toEqual([REFOCUS_DELAY_MS]);
+  expect(result).toEqual({ ok: true, command: link });
+
+  // Not the focused one: a single link, no detour.
+  ran.length = 0;
+  await openSession(ID, { liveDir, desktopDir }, runner, async () => {});
+  expect(ran).toEqual([link]);
 });

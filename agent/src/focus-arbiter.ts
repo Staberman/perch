@@ -19,6 +19,11 @@ export class FocusArbiter {
     });
   }
 
+  /** The session the desktop app counts as focused, from its log, whichever app is in front; null when none. */
+  get desktopFocus(): string | null {
+    return this.latest;
+  }
+
   /** The session in front in the desktop app, from its log. */
   desktop(sessionId: string | null) {
     this.latest = sessionId;

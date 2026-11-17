@@ -67,6 +67,7 @@ claude agents ─ poll ─▶  └ SQLite: pins, icons
 | `claude agents --json` | Names, who is alive, corrections for missed hooks | Yes |
 | `claude --desktop --resume <id>` | Opening a session the desktop app doesn't know; without the app, `claude --resume <id>` in a new Terminal tab | Yes |
 | `claude://code/continue?session=local_…` | Opening any desktop-app session, running or stopped | No |
+| `claude://code/needs-input` | Making the app let go of the session it counts as focused, which it won't open again by link, before opening that one with the app in front | No |
 | `~/Library/Application Support/Claude/claude-code-sessions/` | The app's sessions, and their `local_…` ids | No |
 | `setFocusedSession` in `~/Library/Logs/Claude/main.log` | Which session is in front | No |
 
